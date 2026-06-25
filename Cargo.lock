@@ -107,6 +107,7 @@ dependencies = [
 name = "redis-clone"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "tokio",
 ]
 
