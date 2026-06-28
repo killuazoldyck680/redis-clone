@@ -32,4 +32,15 @@ impl RespHandler {
 
 
     }
+
+
+    fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
+        for i in 1..buffer.len() {
+            if buffer [i-1] == b'\r' && buffer[i] == b'\n' {
+               return Some((&buffer[0..(i-1)], i+1)); 
+            }
+            
+        }
+        return None;
+    }
 }
