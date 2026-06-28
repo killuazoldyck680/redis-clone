@@ -1,5 +1,6 @@
 use tokio::{net::TcpStream, io::{AsyncReadExt, AsyncWriteExt}};
 use bytes::BytesMut;
+use anyhow::Result;
 
 
 
@@ -42,5 +43,9 @@ impl RespHandler {
             
         }
         return None;
+    }
+
+    fn parse_int(buffer: &[u8]) -> Result<i64> {
+        Ok(String::from_utf8(buffer.to_vec())?.parse::<i64>()?)
     }
 }
