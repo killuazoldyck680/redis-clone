@@ -4,7 +4,7 @@ use anyhow:: Result;
 
 
 
-
+#[derive(Clone, Debug)]
 pub enum Value {
     SimpleString(String),
     BulkString(String),
@@ -47,6 +47,12 @@ impl RespHandler {
         Ok(Some(v))
 
 
+    }
+
+    pub async fn write_value(&mut self, value: Value) -> Result<()> {
+        self.stream.write(value.serialize().as_bytes()).await?;
+
+        Ok(())
     }
 
     

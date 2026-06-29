@@ -3,7 +3,7 @@
 use tokio::net::{TcpListener, TcpStream};
 
 use  resp::Value;
-use anyhow::Result;
+use anyhow:: Result;
 
 mod resp;
 
@@ -20,7 +20,7 @@ async fn main() {
         let stream = listener.accept().await;
 
         match stream {
-            Ok((mut stream, _)) => {
+            Ok(( stream, _)) => {
                 println!("connection established");
 
                 tokio::spawn(async move {
@@ -64,6 +64,30 @@ async fn handle_conn(stream: TcpStream) {
         handler.write_value(response).await.unwrap();
     }
 }
+
+fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
+    match value {
+        Value::Array(a) => {
+            let raw_cmd = unpack_bulk_str(a.first().unwrap().clone())?;
+            Ok((
+                raw_cmd.to_lowercase(),
+                a.into_iter().skip(1).collect(),
+
+            ))
+        },
+
+        _ => Err(anyhow::anyhow!("Unexpected command format")),
+    }
+}
+
+fn unpack_bulk_str(value: Value) -> Result<String> {
+    match value {
+        Value::BulkString(s) => Ok(s),
+        _ => Err(anyhow::anyhow!("Expected command to be a bulk string"))
+    }
+}
+
+
 
 
 
