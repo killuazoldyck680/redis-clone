@@ -8,7 +8,13 @@ use anyhow:: Result;
 
 mod resp;
 
-type Db = Arc<Mutex<HashMap<String,String>>>;
+struct DbValue {
+    value: String,
+    expires_at: Option<Instant>,
+}
+
+
+type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
 #[tokio::main]
 async fn main() {
