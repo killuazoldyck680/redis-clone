@@ -66,9 +66,36 @@ async fn handle_conn(stream: TcpStream, db:Db) {
                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
                    let val = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
+
+                    let mut expires_at = None;
+                    if let (Some(opt), Some(expiry_val)) = (args.get(2), args.get(3)) {
+
+                     let raw_opt = unpack_bulk_str(opt.clone()).unwrap();
+                        // Strip any hidden protocol symbols (\r or \n) and trailing spaces
+                        let clean_opt = raw_opt.trim_matches(|c: char| c == '\r' || c == '\n' || c.is_whitespace()).to_lowercase();
+                        
+                        if clean_opt == "px" {
+                            let raw_ms = unpack_bulk_str(expiry_val.clone()).unwrap();
+                            let clean_ms = raw_ms.trim_matches(|c: char| c == '\r' || c == '\n' || c.is_whitespace());
+                            
+                            if let Ok(ms) = clean_ms.parse::<u64>() {
+                              let now = Instant::now();
+        let target_expiry = now + std::time::Duration::from_millis(ms);
+
+        println!("--> [DEBUG SET] Current Instant: {:?}", now);
+        println!("--> [DEBUG SET] Adding Delay: {} ms", ms);
+        println!("--> [DEBUG SET] Will Expire At: {:?}", target_expiry);  
+
+        expires_at = Some(target_expiry);
+                                
+                            }
+                        }
+                    }   
+                    
+
                    let mut db_lock = db.lock().unwrap();
 
-                   db_lock.insert(key, val);
+                   db_lock.insert(key, DbValue { value: val, expires_at });
 
                    Value::SimpleString("OK".to_string())
 
@@ -77,16 +104,38 @@ async fn handle_conn(stream: TcpStream, db:Db) {
                 "get" => {
                     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-                    let db_lock = db.lock().unwrap();
+                    let mut db_lock = db.lock().unwrap();
 
-                    match db_lock.get(&key) {
-                        Some(val) => Value::BulkString(val.clone()),
+                let is_expired = if let Some(db_val) = db_lock.get(&key) {
+        if let Some(expiry) = db_val.expires_at {
+            let now = Instant::now();
+            
+            // --- ADD THESE DIAGNOSTIC LOGS ---
+            println!("--> [DEBUG GET] Current Instant: {:?}", now);
+            println!("--> [DEBUG GET] Key Expiry Time: {:?}", expiry);
+            println!("--> [DEBUG GET] Is Current > Expiry? {}", now > expiry);
+            // ---------------------------------
 
-                        None => Value::NullBulkString,
-                    }
+            now > expiry
+        } else {
+            false
+        }
+    } else {
+        false
+    };
 
-
-                }
+    // 2. If it is expired, we remove it. The immutable borrow from above is completely gone here!
+    if is_expired {
+        db_lock.remove(&key);
+        Value::NullBulkString
+    } else {
+        // 3. Otherwise, fetch it normally
+        match db_lock.get(&key) {
+            Some(db_val) => Value::BulkString(db_val.value.clone()),
+            None => Value::NullBulkString,
+        }
+    }
+} 
                 c => panic!("Error {c}")
 
             }
