@@ -9,6 +9,7 @@ pub enum Value {
     SimpleString(String),
     BulkString(String),
     Array(Vec<Value>),
+    NullBulkString,
 }
 
 pub struct RespHandler {
@@ -21,7 +22,8 @@ impl Value {
     pub fn serialize(self) -> String {
         match self {
             Value::SimpleString(s) => format!("+{}\r\n", s),
-            Value::BulkString(s) => format!("${}\r\n{}\r\n", s.chars().count(), s),
+            Value::BulkString(s) => format!("${}\r\n{}\r\n", s.len(), s),
+            Value::NullBulkString => "$-1\r\n".to_string(),
             _ => panic!("Unsupported value for serialize")
         }
     }

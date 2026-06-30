@@ -8,14 +8,14 @@ use anyhow:: Result;
 
 mod resp;
 
-
+type Db = Arc<Mutex<HashMap<String,String>>>;
 
 #[tokio::main]
 async fn main() {
 
     let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
 
-    
+    let db:Db = Arc::new(Mutex::new(HashMap::new()));
 
     loop {
         let stream = listener.accept().await;
@@ -24,9 +24,11 @@ async fn main() {
             Ok(( stream, _)) => {
                 println!("connection established");
 
+                let db_clone = Arc::clone(&db);
+
                 tokio::spawn(async move {
 
-                    handle_conn(stream).await
+                    handle_conn(stream, db_clone).await;
                 });
                 
                 
@@ -38,7 +40,7 @@ async fn main() {
     }
 }
 
-async fn handle_conn(stream: TcpStream) {
+async fn handle_conn(stream: TcpStream, db:Db) {
     let mut handler = resp::RespHandler::new(stream);
 
     println!("Starting read loop");
@@ -50,10 +52,36 @@ async fn handle_conn(stream: TcpStream) {
 
         let response = if let Some(v) = value {
             let (command, args) = extract_command(v).unwrap();
-            match command.as_str() {
+            match command.trim() {
                 "ping" => Value::SimpleString("PONG".to_string()),
                 "echo" => args.first().unwrap().clone(),
-                c => panic!("Cannot handle command {}", c),
+                
+                "set" => {
+                   let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+                   let val = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+                   let mut db_lock = db.lock().unwrap();
+
+                   db_lock.insert(key, val);
+
+                   Value::SimpleString("OK".to_string())
+
+                }
+
+                "get" => {
+                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+                    let db_lock = db.lock().unwrap();
+
+                    match db_lock.get(&key) {
+                        Some(val) => Value::BulkString(val.clone()),
+
+                        None => Value::NullBulkString,
+                    }
+
+
+                }
+                c => panic!("Error {c}")
 
             }
         } else {
