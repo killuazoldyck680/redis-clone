@@ -8,8 +8,13 @@ use anyhow:: Result;
 
 mod resp;
 
+enum DataType {
+    String(String),
+    List(Vec<String>),
+}
+
 struct DbValue {
-    value: String,
+    value: DataType,
     expires_at: Option<Instant>,
 }
 
@@ -95,7 +100,7 @@ async fn handle_conn(stream: TcpStream, db:Db) {
 
                    let mut db_lock = db.lock().unwrap();
 
-                   db_lock.insert(key, DbValue { value: val, expires_at });
+                   db_lock.insert(key, DbValue { value: DataType::String(val), expires_at });
 
                    Value::SimpleString("OK".to_string())
 
@@ -131,9 +136,19 @@ async fn handle_conn(stream: TcpStream, db:Db) {
     } else {
         // 3. Otherwise, fetch it normally
         match db_lock.get(&key) {
-            Some(db_val) => Value::BulkString(db_val.value.clone()),
+            Some(db_val) => {
+                match &db_val.value {
+                   DataType::String(s) => Value::BulkString(s.clone()),
+                   DataType::List(_) => Value::NullBulkString, 
+                }
+            }
             None => Value::NullBulkString,
+
+
+            
         }
+
+        
     }
 } 
                 c => panic!("Error {c}")
