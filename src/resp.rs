@@ -28,7 +28,15 @@ impl Value {
             Value::NullBulkString => "$-1\r\n".to_string(),
             Value::Integer(i) => format!(":{}\r\n", i),
             Value::Error(e) => format!("-{}\r\n", e),
-            _ => panic!("Unsupported value for serialize"),
+            Value::Array(items) => {
+                let mut result = format!("*{}\r\n", items.len());
+
+                for item in items {
+                   result.push_str(&item.serialize()); 
+                }
+
+                result
+            }
         }
     }
 }

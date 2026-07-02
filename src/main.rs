@@ -158,50 +158,100 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     let mut db_lock = db.lock().unwrap();
 
-                    let final_len = match db_lock.get_mut(&key)  {
-                        Some(db_val) => {
-                            match &mut db_val.value {
-                                DataType::List(existing_list) => {
-                                    existing_list.extend(new_elements);
-                                    existing_list.len()
-                                }
-                                DataType::String(_) => {
-                                panic!("WRONGTYPE Operation against a key holding the wrong kind of value");
+                    let final_len = match db_lock.get_mut(&key) {
+                        Some(db_val) => match &mut db_val.value {
+                            DataType::List(existing_list) => {
+                                existing_list.extend(new_elements);
+                                existing_list.len()
+                            }
+                            DataType::String(_) => {
+                                panic!(
+                                    "WRONGTYPE Operation against a key holding the wrong kind of value"
+                                );
                             }
                             _ => {
                                 panic!("Unexpected database type value found");
                             }
-                            }
-                            
+                        },
+
+                        None => {
+                            let list_len = new_elements.len();
+
+                            db_lock.insert(
+                                key,
+                                DbValue {
+                                    value: DataType::List(new_elements),
+                                    expires_at: None,
+                                },
+                            );
+                            list_len
                         }
-                    
-                    None => {
-                       let list_len = new_elements.len();
+                    };
 
-                       db_lock.insert(key, DbValue{
-                        value: DataType::List(new_elements),
-                        expires_at: None,
-                       });
-                       list_len 
-                    }
+                    Value::Integer(final_len as i64)
+                }
+                "lrange" => {
+                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+                    let start_index = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+                    let stop_index = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
-                };
+                    let mut start_index = start_index.parse::<i64>().unwrap();
 
-                Value::Integer(final_len as i64)
-            }
-            "lrange" => {
-                let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-                let start_index = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-                let stop_index = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
+                    let mut stop_index = stop_index.parse::<i64>().unwrap();
 
-                let start_index = start_index.parse::<i64>().unwrap();
+                    let db_lock = db.lock().unwrap();
 
-                let stop_index = stop_index.parse::<i64>().unwrap();
+                    let final_key = match db_lock.get(&key) {
+                        Some(db_val) => match &db_val.value {
+                            DataType::List(existing_list) => {
+                                let length = existing_list.len() as i64;
 
-                let db_lock = db.lock().unwrap();
+                                if start_index < 0 {
+                                    start_index += length;
+                                }
+                                if stop_index < 0 {
+                                    stop_index += length;
+                                }
+                                if start_index < 0 {
+                                    start_index = 0;
+                                }
 
+                                if stop_index < 0 {
+                                    stop_index = 0;
+                                }
 
-            }
+                                if start_index >= length || start_index > stop_index {
+                                    Value::Array(vec![])
+                                } else {
+                                    if stop_index >= length {
+                                        stop_index = length - 1;
+                                    }
+                                    if let Some(element_slice) = existing_list
+                                        .get(start_index as usize..=stop_index as usize)
+                                    {
+                                        Value::Array(
+                                            element_slice
+                                                .iter()
+                                                .map(|item| Value::BulkString(item.clone()))
+                                                .collect::<Vec<Value>>(),
+                                        )
+                                    } else {
+                                        Value::Array(vec![])
+                                    }
+                                }
+                            }
+
+                            _ => Value::Error(
+                                "WRONGTYPE Operation against a key holding the wrong kind of value"
+                                    .to_string(),
+                            ),
+                        },
+
+                        None => Value::Array(vec![]),
+                    };
+
+                    final_key
+                }
                 c => panic!("Error {c}"),
             }
         } else {
