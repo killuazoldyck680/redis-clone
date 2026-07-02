@@ -11,6 +11,7 @@ pub enum Value {
     BulkString(String),
     Array(Vec<Value>),
     NullBulkString,
+    Error(String),
 }
 
 pub struct RespHandler {
@@ -24,6 +25,7 @@ impl Value {
             Value::SimpleString(s) => format!("+{}\r\n", s),
             Value::BulkString(s) => format!("${}\r\n{}\r\n", s.len(), s),
             Value::NullBulkString => "$-1\r\n".to_string(),
+            Value::Error(e) => format!("-{}\r\n", e),
             _ => panic!("Unsupported value for serialize"),
         }
     }
