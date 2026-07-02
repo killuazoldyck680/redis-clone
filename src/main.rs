@@ -139,7 +139,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                         match db_lock.get(&key) {
                             Some(db_val) => match &db_val.value {
                                 DataType::String(s) => Value::BulkString(s.clone()),
-                                DataType::List(_) => Value::NullBulkString,
+                                DataType::List(_) => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
                             },
                             None => Value::NullBulkString,
                         }
@@ -187,7 +187,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                 };
 
-                Value::SimpleString(final_len.to_string())
+                Value::Integer(final_len as i64)
             }
                 c => panic!("Error {c}"),
             }
