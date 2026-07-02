@@ -189,6 +189,19 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                 Value::Integer(final_len as i64)
             }
+            "lrange" => {
+                let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+                let start_index = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+                let stop_index = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
+
+                let start_index = start_index.parse::<i64>().unwrap();
+
+                let stop_index = stop_index.parse::<i64>().unwrap();
+
+                let db_lock = db.lock().unwrap();
+
+
+            }
                 c => panic!("Error {c}"),
             }
         } else {
