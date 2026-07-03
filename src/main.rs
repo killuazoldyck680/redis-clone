@@ -263,19 +263,26 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                         }
                     }
 
-                    new_elements.reverse();
+                    
 
                     let mut db_lock = db.lock().unwrap();
 
                     let final_list = match db_lock.get_mut(&key) {
-                        Some() => {
+                        Some(db_val) => {
                             match &mut db_val.value {
-                                DataType::List(existing_list) => {}
+                                DataType::List(existing_list) => {
+                                    for item in new_elements {
+                                        existing_list.insert(0, item);
+                                    }
+                                    existing_list.len()
+                                }
 
                                 DataType::String(_) => {
-                                    panic!("error")
+                                    panic!("error");
                                 }
+
                             }
+                            
                         }
 
                         None => {
@@ -285,7 +292,9 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                             list_len
                         }
-                    }
+                    };
+
+                    Value::Integer(final_list as i64)
 
 
                 }
