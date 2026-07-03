@@ -268,7 +268,15 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     let mut db_lock = db.lock().unwrap();
 
                     let final_list = match db_lock.get_mut(&key) {
-                        Some() => {}
+                        Some() => {
+                            match &mut db_val.value {
+                                DataType::List(existing_list) => {}
+
+                                DataType::String(_) => {
+                                    panic!("error")
+                                }
+                            }
+                        }
 
                         None => {
                             
