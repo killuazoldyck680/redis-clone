@@ -297,6 +297,19 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     Value::Integer(final_list as i64)
 
 
+
+                }
+                "llen" => {
+                   let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+                   let db_lock = db.lock().unwrap();
+
+                   let list_len = match db_lock.get(&key) {
+                    Some(db_val) => {}
+                    None => {}
+                   }
+
+
                 }
                 c => panic!("Error {c}"),
             }
