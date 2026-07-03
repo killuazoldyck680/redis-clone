@@ -305,11 +305,21 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                    let db_lock = db.lock().unwrap();
 
                    let list_len = match db_lock.get(&key) {
-                    Some(db_val) => {}
-                    None => {}
-                   }
+                    Some(db_val) => {
+                        match &db_val.value {
+                            DataType::List(existing_list) => {
+                                existing_list.len()
+                            }
 
+                            DataType::String(_) => {
+                                panic!("error");
+                            }
+                        }
+                    }
+                    None => {0}
+                   };
 
+                Value::Integer(list_len as i64)
                 }
                 c => panic!("Error {c}"),
             }
