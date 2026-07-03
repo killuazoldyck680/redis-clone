@@ -252,6 +252,35 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     final_key
                 }
+                "lpush" => {
+                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+                    let mut new_elements = Vec::new();
+
+                    for arg in args.into_iter().skip(1) {
+                        if let Ok(element_str) = unpack_bulk_str(arg) {
+                            new_elements.push(element_str);
+                        }
+                    }
+
+                    new_elements.reverse();
+
+                    let mut db_lock = db.lock().unwrap();
+
+                    let final_list = match db_lock.get_mut(&key) {
+                        Some() => {}
+
+                        None => {
+                            
+                            let list_len = new_elements.len();
+                            db_lock.insert(key, DbValue { value: DataType::List(new_elements), expires_at: None });
+
+                            list_len
+                        }
+                    }
+
+
+                }
                 c => panic!("Error {c}"),
             }
         } else {
