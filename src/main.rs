@@ -329,14 +329,26 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     let popped_val = match db_lock.get_mut(&key)  {
                         Some(db_val) => {
                             match &mut db_val.value {
-                                DataType::List(existing_list) => {}
+                                DataType::List(existing_list) => {
+                                 
 
-                                DataType::String(_) => {}
+                                    if existing_list.is_empty() {
+                                        Value::NullBulkString
+                                    } else {
+                                        Value::BulkString(existing_list.remove(0))
+                                    }
+
+                                    
+                                }
+
+                                DataType::String(_) => {
+                                    panic!("error")
+                                }
                             }
                          }
 
-                        None => {}
-                    }
+                        None => {Value::NullBulkString}
+                    };
                     popped_val
                 }
 
