@@ -321,6 +321,21 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                 Value::Integer(list_len as i64)
                 }
+                "lpop" => {
+                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+                    let mut db_lock = db.lock().unwrap();
+
+                    let popped_val = match db_lock.get_mut(&key)  {
+                        Some(db_val) => {
+                            
+                        }
+
+                        None => {}
+                    }
+                    popped_val
+                }
+
                 c => panic!("Error {c}"),
             }
         } else {
