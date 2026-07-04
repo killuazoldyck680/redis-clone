@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::env;
+use std::{env, usize};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tokio::net::{TcpListener, TcpStream};
@@ -324,6 +324,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                 "lpop" => {
                     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
+                   let count_opt = args.get(1).cloned();
+
+                    let count_opt = count_opt.map(|val| unpack_bulk_str(val.clone()).unwrap().parse::<usize>().unwrap());
+
                     let mut db_lock = db.lock().unwrap();
 
                     let popped_val = match db_lock.get_mut(&key)  {
@@ -331,12 +335,33 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                             match &mut db_val.value {
                                 DataType::List(existing_list) => {
                                  
+                                 match count_opt {
 
+                                 Some(count) => {
+                                    let mut popped_elments = Vec::new();
+
+                                    let iterations = std::cmp::min(count,existing_list.len());
+
+                                    for _ in 0..iterations {
+                                        let element = existing_list.remove(0);
+
+                                        popped_elments.push(Value::BulkString(element));
+
+                                        
+                                    }
+                                    Value::Array(popped_elments)
+
+                                 } 
+
+
+                                 None => {
                                     if existing_list.is_empty() {
                                         Value::NullBulkString
                                     } else {
                                         Value::BulkString(existing_list.remove(0))
                                     }
+                                 }
+                                }  
 
                                     
                                 }
