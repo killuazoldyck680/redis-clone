@@ -375,7 +375,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                         None => {Value::NullBulkString}
                     };
                     popped_val
-                }
+                } jjj
 
                 c => panic!("Error {c}"),
             }
