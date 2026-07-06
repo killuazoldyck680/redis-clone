@@ -405,4 +405,4 @@ fn unpack_bulk_str(value: Value) -> Result<String> {
         Value::BulkString(s) => Ok(s),
         _ => Err(anyhow::anyhow!("Expected command to be a bulk string")),
     }
-}  kkk
+} 
