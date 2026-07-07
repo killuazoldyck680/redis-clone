@@ -13,7 +13,7 @@ pub enum Value {
     NullBulkString,
     Integer(i64),
     Error(String),
-}kkk
+}
 
 pub struct RespHandler {
     stream: TcpStream,
