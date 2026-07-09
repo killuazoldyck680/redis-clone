@@ -17,7 +17,7 @@ pub enum Value {
 
 pub struct RespHandler {
     stream: TcpStream,
-    buffer: BytesMut,llm
+    buffer: BytesMut,
 }
 
 impl Value {
