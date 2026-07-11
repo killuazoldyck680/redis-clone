@@ -12,7 +12,7 @@ pub enum Value {
     Array(Vec<Value>),
     NullBulkString,
     Integer(i64),
-    Error(String),
+    Error(String),ll
 } 
 
 pub struct RespHandler {
