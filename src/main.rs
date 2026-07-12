@@ -376,7 +376,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     };
                     popped_val
                 } 
-
+                "blpop" => {
+                    let timeout_value = unpack_bulk_str(args.last().cloned().unwrap()).unwrap();
+                    
+                }
                 c => panic!("Error {c}"),
             }
         } else {
