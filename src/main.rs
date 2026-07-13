@@ -377,8 +377,22 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     popped_val
                 } 
                 "blpop" => {
-                    let timeout_value = unpack_bulk_str(args.last().cloned().unwrap()).unwrap();
-                    
+                    let timeout_value = unpack_bulk_str(args.last().cloned().unwrap()).unwrap().parse::<u64>().unwrap();
+
+                    let keys: Vec<String>= args[..args.len() - 1].iter().cloned().map(|val| unpack_bulk_str(val).unwrap()).collect();
+
+                    let mut db_lock = db.lock().unwrap();
+
+                    for key in &keys {
+                        match db_lock.get_mut(key) {
+                            
+                        }
+                    }
+
+
+
+
+
                 }
                 c => panic!("Error {c}"),
             }
