@@ -401,7 +401,11 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                             }
                         } 
                     }
-                    
+
+                    drop(db_lock);
+
+                    let start_time = std::time::Instant::now();
+
 
 
 
