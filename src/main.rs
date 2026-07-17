@@ -412,7 +412,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
 
 
-                }kk
+                }
                 c => panic!("Error {c}"),
             }
         } else {
