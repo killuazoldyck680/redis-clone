@@ -12,6 +12,7 @@ pub enum Value {
     Array(Vec<Value>),
     NullBulkString,
     Integer(i64),
+    NullArray,
     Error(String),
 } 
 
@@ -28,6 +29,7 @@ impl Value {
             Value::NullBulkString => "$-1\r\n".to_string(),
             Value::Integer(i) => format!(":{}\r\n", i),
             Value::Error(e) => format!("-{}\r\n", e),
+            Value::NullArray => "*-1\r\n".to_string(),
             Value::Array(items) => {
                 let mut result = format!("*{}\r\n", items.len());
 

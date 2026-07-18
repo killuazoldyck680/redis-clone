@@ -423,12 +423,22 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                         }
                                     }
 
-                                    drop(db_lock);
+                                    
                                 }
                             }
                         }
 
+                        drop(db_lock);
+
+                        if timeout_value > 0 && start_time.elapsed().as_secs() >= timeout_value {
+                            break ;
+                        }
+
+                       std::thread::sleep(std::time::Duration::from_millis(50)); 
+
                     }
+
+                    V
 
 
 
