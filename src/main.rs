@@ -406,6 +406,30 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     let start_time = std::time::Instant::now(); 
 
+                    loop {
+                        let mut db_lock = db.lock().unwrap();
+
+                        for key in &keys {
+                            match db_lock.get_mut(key) {
+                                Some(db_val) => {
+                                    match &mut db_val.value {
+                                        DataType::List(existing_list) => {
+                                            if !existing_list.is_empty() {
+                                                let element = existing_list.remove(0);
+
+                                                return Value::Array(vec![Value::BulkString(key.clone()), Value::BulkString(element)])
+
+                                            }
+                                        }
+                                    }
+
+                                    drop(db_lock);
+                                }
+                            }
+                        }
+
+                    }
+
 
 
                     
