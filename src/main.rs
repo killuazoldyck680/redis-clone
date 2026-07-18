@@ -378,75 +378,79 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                 } 
                 "blpop" => {
                     let timeout_value = unpack_bulk_str(args.last().cloned().unwrap()).unwrap().parse::<u64>().unwrap();
+                    let keys: Vec<String> = args[..args.len() - 1].iter().cloned().map(|val| unpack_bulk_str(val).unwrap()).collect();
 
-                    let keys: Vec<String>= args[..args.len() - 1].iter().cloned().map(|val| unpack_bulk_str(val).unwrap()).collect();
-
-                    let mut db_lock = db.lock().unwrap();
-
-                    for key in &keys {
-                        match db_lock.get_mut(key) {
-                            Some(db_val) => {
+                    // CRITICAL FIX: Run the fast path inside a block context so fast_path's MutexGuard 
+                    // is dropped before any code block containing an .await execution statement.
+                    let fast_path_val = {
+                        let mut db_lock = db.lock().unwrap();
+                        let mut found_val = None;
+                        
+                        for key in &keys {
+                            if let Some(db_val) = db_lock.get_mut(key) {
                                 match &mut db_val.value {
                                     DataType::List(existing_list) => {
                                         if !existing_list.is_empty() {
                                             let element = existing_list.remove(0);
-
-                                            return Value::Array(vec![
+                                            found_val = Some(Value::Array(vec![
                                                 Value::BulkString(key.clone()),
                                                 Value::BulkString(element)
-                                            ]);
+                                            ]));
+                                            break;
                                         }
                                     }
+                                    _ => {} 
                                 }
                             }
-                        } 
-                    }
+                        }
+                        found_val
+                    };
 
-                    drop(db_lock);
+                    // 2. Evaluate fast-path or proceed to the polling loop
+                    if let Some(response_val) = fast_path_val {
+                        response_val
+                    } else {
+                        let start_time = std::time::Instant::now();
 
-                    let start_time = std::time::Instant::now(); 
+                        let final_polled_val = loop {
+                            let popped_element = {
+                                let mut loop_db_lock = db.lock().unwrap();
+                                let mut found = None;
 
-                    loop {
-                        let mut db_lock = db.lock().unwrap();
-
-                        for key in &keys {
-                            match db_lock.get_mut(key) {
-                                Some(db_val) => {
-                                    match &mut db_val.value {
-                                        DataType::List(existing_list) => {
+                                for key in &keys {
+                                    if let Some(db_val) = loop_db_lock.get_mut(key) {
+                                        if let DataType::List(existing_list) = &mut db_val.value {
                                             if !existing_list.is_empty() {
                                                 let element = existing_list.remove(0);
-
-                                                return Value::Array(vec![Value::BulkString(key.clone()), Value::BulkString(element)])
-
+                                                found = Some((key.clone(), element));
+                                                break;
                                             }
                                         }
                                     }
-
-                                    
                                 }
+                                found
+                            };
+
+                            if let Some((key_name, element_val)) = popped_element {
+                                break Value::Array(vec![
+                                    Value::BulkString(key_name),
+                                    Value::BulkString(element_val)
+                                ]);
                             }
-                        }
 
-                        drop(db_lock);
+                            if timeout_value > 0 && start_time.elapsed().as_secs() >= timeout_value {
+                                break Value::NullArray;
+                            }
 
-                        if timeout_value > 0 && start_time.elapsed().as_secs() >= timeout_value {
-                            break ;
-                        }
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                        };
 
-                       std::thread::sleep(std::time::Duration::from_millis(50)); 
-
+                        final_polled_val
                     }
-
-                    V
-
-
-
+                }
                     
 
-
-
-                }
+                    
                 c => panic!("Error {c}"),
             }
         } else {
