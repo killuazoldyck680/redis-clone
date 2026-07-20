@@ -447,7 +447,23 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     let mut db_lock = db.lock().unwrap();
 
-                    
+                    let checked_val = match db_lock.get(&key) {
+                        Some(db_val) => {
+                            if let Some(expiry) = db_val.expires_at {
+                            if Instant::now() > expiry {
+                               db_lock.remove(&key)
+                               Value::SimpleString("none".to_string()) 
+                            } else {
+                                match &db_val.value {
+                                    DataType::String(_) => Value::SimpleString("string".to_string()),
+                                    DataType::List(_) => Value::SimpleString("list".to_string()),
+                                }
+                            }
+                            }
+                        }
+                    }
+
+
                 }
 
                 c => panic!("Error {c}"),
