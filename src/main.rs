@@ -451,7 +451,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                         Some(db_val) => {
                             if let Some(expiry) = db_val.expires_at {
                             if Instant::now() > expiry {
-                               db_lock.remove(&key)
+                               db_lock.remove(&key);
                                Value::SimpleString("none".to_string()) 
                             } else {
                                 match &db_val.value {
@@ -459,9 +459,17 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                     DataType::List(_) => Value::SimpleString("list".to_string()),
                                 }
                             }
+                            } else {
+                                match &db_val.value {
+                                    DataType::String(_) => Value::SimpleString("string".to_string()),
+                                    DataType::List(_) => Value::SimpleString("list".to_string()),
+                                }
                             }
                         }
-                    }
+                        None => Value::SimpleString("none".to_string()), 
+                    };
+
+                    checked_val
 
 
                 }
