@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::{env, usize};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use std::{env, usize};
 use tokio::net::{TcpListener, TcpStream};
 
 use anyhow::Result;
@@ -263,202 +263,193 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                         }
                     }
 
-                    
-
                     let mut db_lock = db.lock().unwrap();
 
                     let final_list = match db_lock.get_mut(&key) {
-                        Some(db_val) => {
-                            match &mut db_val.value {
-                                DataType::List(existing_list) => {
-                                    for item in new_elements {
-                                        existing_list.insert(0, item);
-                                    }
-                                    existing_list.len()
-                                }
-
-                                DataType::String(_) => {
-                                    panic!("error");
-                                }
-
-                            }
-                            
-                        }
-
-                        None => {
-                            
-                            let list_len = new_elements.len();
-                            db_lock.insert(key, DbValue { value: DataType::List(new_elements), expires_at: None });
-
-                            list_len
-                        }
-                    };
-
-                    Value::Integer(final_list as i64)
-
-
-
-                }
-                "llen" => {
-                   let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
-                   let db_lock = db.lock().unwrap();
-
-                   let list_len = match db_lock.get(&key) {
-                    Some(db_val) => {
-                        match &db_val.value {
+                        Some(db_val) => match &mut db_val.value {
                             DataType::List(existing_list) => {
+                                for item in new_elements {
+                                    existing_list.insert(0, item);
+                                }
                                 existing_list.len()
                             }
 
                             DataType::String(_) => {
                                 panic!("error");
                             }
-                        }
-                    }
-                    None => {0}
-                   };
+                        },
 
-                Value::Integer(list_len as i64)
+                        None => {
+                            let list_len = new_elements.len();
+                            db_lock.insert(
+                                key,
+                                DbValue {
+                                    value: DataType::List(new_elements),
+                                    expires_at: None,
+                                },
+                            );
+
+                            list_len
+                        }
+                    };
+
+                    Value::Integer(final_list as i64)
+                }
+                "llen" => {
+                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+                    let db_lock = db.lock().unwrap();
+
+                    let list_len = match db_lock.get(&key) {
+                        Some(db_val) => match &db_val.value {
+                            DataType::List(existing_list) => existing_list.len(),
+
+                            DataType::String(_) => {
+                                panic!("error");
+                            }
+                        },
+                        None => 0,
+                    };
+
+                    Value::Integer(list_len as i64)
                 }
                 "lpop" => {
                     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-                   let count_opt = args.get(1).cloned();
+                    let count_opt = args.get(1).cloned();
 
-                    let count_opt = count_opt.map(|val| unpack_bulk_str(val.clone()).unwrap().parse::<usize>().unwrap());
+                    let count_opt = count_opt.map(|val| {
+                        unpack_bulk_str(val.clone())
+                            .unwrap()
+                            .parse::<usize>()
+                            .unwrap()
+                    });
 
                     let mut db_lock = db.lock().unwrap();
 
-                    let popped_val = match db_lock.get_mut(&key)  {
-                        Some(db_val) => {
-                            match &mut db_val.value {
-                                DataType::List(existing_list) => {
-                                 
-                                 match count_opt {
-
-                                 Some(count) => {
+                    let popped_val = match db_lock.get_mut(&key) {
+                        Some(db_val) => match &mut db_val.value {
+                            DataType::List(existing_list) => match count_opt {
+                                Some(count) => {
                                     let mut popped_elments = Vec::new();
 
-                                    let iterations = std::cmp::min(count,existing_list.len());
+                                    let iterations = std::cmp::min(count, existing_list.len());
 
                                     for _ in 0..iterations {
                                         let element = existing_list.remove(0);
 
                                         popped_elments.push(Value::BulkString(element));
-
-                                        
                                     }
                                     Value::Array(popped_elments)
+                                }
 
-                                 } 
-
-
-                                 None => {
+                                None => {
                                     if existing_list.is_empty() {
                                         Value::NullBulkString
                                     } else {
                                         Value::BulkString(existing_list.remove(0))
                                     }
-                                 }
-                                }  
-
-                                    
                                 }
+                            },
 
-                                DataType::String(_) => {
-                                    panic!("error")
-                                }
+                            DataType::String(_) => {
+                                panic!("error")
                             }
-                         }
+                        },
 
-                        None => {Value::NullBulkString}
+                        None => Value::NullBulkString,
                     };
                     popped_val
-                } 
-                "blpop" => {
-    // Parse as f64 to properly handle decimal timeouts like 0.5
-    let timeout_secs = unpack_bulk_str(args.last().cloned().unwrap())
-        .unwrap()
-        .parse::<f64>()
-        .unwrap();
-        
-    let keys: Vec<String> = args[..args.len() - 1]
-        .iter()
-        .cloned()
-        .map(|val| unpack_bulk_str(val).unwrap())
-        .collect();
-
-    let timeout_duration = std::time::Duration::from_secs_f64(timeout_secs);
-
-    // 1. Fast path check
-    let fast_path_val = {
-        let mut db_lock = db.lock().unwrap();
-        let mut found_val = None;
-        
-        for key in &keys {
-            if let Some(db_val) = db_lock.get_mut(key) {
-                if let DataType::List(existing_list) = &mut db_val.value {
-                    if !existing_list.is_empty() {
-                        let element = existing_list.remove(0);
-                        found_val = Some(Value::Array(vec![
-                            Value::BulkString(key.clone()),
-                            Value::BulkString(element)
-                        ]));
-                        break;
-                    }
                 }
-            }
-        }
-        found_val
-    };
+                "blpop" => {
+                    // Parse as f64 to properly handle decimal timeouts like 0.5
+                    let timeout_secs = unpack_bulk_str(args.last().cloned().unwrap())
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap();
 
-    // 2. Evaluate fast-path or proceed to the polling loop
-    if let Some(response_val) = fast_path_val {
-        response_val
-    } else {
-        let start_time = std::time::Instant::now();
+                    let keys: Vec<String> = args[..args.len() - 1]
+                        .iter()
+                        .cloned()
+                        .map(|val| unpack_bulk_str(val).unwrap())
+                        .collect();
 
-        let final_polled_val = loop {
-            let popped_element = {
-                let mut loop_db_lock = db.lock().unwrap();
-                let mut found = None;
+                    let timeout_duration = std::time::Duration::from_secs_f64(timeout_secs);
 
-                for key in &keys {
-                    if let Some(db_val) = loop_db_lock.get_mut(key) {
-                        if let DataType::List(existing_list) = &mut db_val.value {
-                            if !existing_list.is_empty() {
-                                let element = existing_list.remove(0);
-                                found = Some((key.clone(), element));
-                                break;
+                    // 1. Fast path check
+                    let fast_path_val = {
+                        let mut db_lock = db.lock().unwrap();
+                        let mut found_val = None;
+
+                        for key in &keys {
+                            if let Some(db_val) = db_lock.get_mut(key) {
+                                if let DataType::List(existing_list) = &mut db_val.value {
+                                    if !existing_list.is_empty() {
+                                        let element = existing_list.remove(0);
+                                        found_val = Some(Value::Array(vec![
+                                            Value::BulkString(key.clone()),
+                                            Value::BulkString(element),
+                                        ]));
+                                        break;
+                                    }
+                                }
                             }
                         }
+                        found_val
+                    };
+
+                    // 2. Evaluate fast-path or proceed to the polling loop
+                    if let Some(response_val) = fast_path_val {
+                        response_val
+                    } else {
+                        let start_time = std::time::Instant::now();
+
+                        let final_polled_val = loop {
+                            let popped_element = {
+                                let mut loop_db_lock = db.lock().unwrap();
+                                let mut found = None;
+
+                                for key in &keys {
+                                    if let Some(db_val) = loop_db_lock.get_mut(key) {
+                                        if let DataType::List(existing_list) = &mut db_val.value {
+                                            if !existing_list.is_empty() {
+                                                let element = existing_list.remove(0);
+                                                found = Some((key.clone(), element));
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                found
+                            };
+
+                            if let Some((key_name, element_val)) = popped_element {
+                                break Value::Array(vec![
+                                    Value::BulkString(key_name),
+                                    Value::BulkString(element_val),
+                                ]);
+                            }
+
+                            // Correct timeout check using Duration comparison
+                            if timeout_secs > 0.0 && start_time.elapsed() >= timeout_duration {
+                                break Value::NullArray;
+                            }
+
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                        };
+
+                        final_polled_val
                     }
                 }
-                found
-            };
 
-            if let Some((key_name, element_val)) = popped_element {
-                break Value::Array(vec![
-                    Value::BulkString(key_name),
-                    Value::BulkString(element_val)
-                ]);
-            }
+                "type" => {
+                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-            // Correct timeout check using Duration comparison
-            if timeout_secs > 0.0 && start_time.elapsed() >= timeout_duration {
-                break Value::NullArray;
-            }
-
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        };
-
-        final_polled_val
-    }
-} 
-                    
+                    let mut db_lock = db.lock().unwrap();
 
                     
+                }
+
                 c => panic!("Error {c}"),
             }
         } else {
@@ -487,4 +478,4 @@ fn unpack_bulk_str(value: Value) -> Result<String> {
         Value::BulkString(s) => Ok(s),
         _ => Err(anyhow::anyhow!("Expected command to be a bulk string")),
     }
-} 
+}

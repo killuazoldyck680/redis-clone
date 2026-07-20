@@ -14,11 +14,11 @@ pub enum Value {
     Integer(i64),
     NullArray,
     Error(String),
-} 
+}
 
 pub struct RespHandler {
     stream: TcpStream,
-    buffer: BytesMut, 
+    buffer: BytesMut,
 }
 
 impl Value {
@@ -34,7 +34,7 @@ impl Value {
                 let mut result = format!("*{}\r\n", items.len());
 
                 for item in items {
-                   result.push_str(&item.serialize()); 
+                    result.push_str(&item.serialize());
                 }
 
                 result
