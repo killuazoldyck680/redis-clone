@@ -495,6 +495,15 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     }
                 }
 
+                let entry = StreamEntry {
+                    id: id.clone(),
+                    fields
+                };
+
+                let mut db_lock = db.lock().unwrap();
+
+                
+
 
 
 
