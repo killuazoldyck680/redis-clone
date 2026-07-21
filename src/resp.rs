@@ -21,6 +21,10 @@ pub struct RespHandler {
     buffer: BytesMut,
 }
 
+pub struct StreamEntry {
+    id: String,
+    fields: Vec<(String, String)>,
+}
 impl Value {
     pub fn serialize(self) -> String {
         match self {

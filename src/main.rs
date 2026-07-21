@@ -7,11 +7,14 @@ use tokio::net::{TcpListener, TcpStream};
 use anyhow::Result;
 use resp::Value;
 
+use crate::resp::StreamEntry;
+
 mod resp;
 
 enum DataType {
     String(String),
     List(Vec<String>),
+    Stream(Vec<StreamEntry>),
 }
 
 struct DbValue {
@@ -472,6 +475,12 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     checked_val
 
 
+                }
+
+                "xadd" => {
+                  let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+                  
+                    
                 }
 
                 c => panic!("Error {c}"),
