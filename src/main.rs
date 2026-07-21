@@ -479,8 +479,13 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                 "xadd" => {
                   let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+                  let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
                   
-                    
+
+
+
+
                 }
 
                 c => panic!("Error {c}"),
