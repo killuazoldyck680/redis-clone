@@ -142,7 +142,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                         match db_lock.get(&key) {
                             Some(db_val) => match &db_val.value {
                                 DataType::String(s) => Value::BulkString(s.clone()),
-                                DataType::List(_) => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+                                _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
                             },
                             None => Value::NullBulkString,
                         }
@@ -280,6 +280,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                             DataType::String(_) => {
                                 panic!("error");
                             }
+
+                            _ => {
+                                panic!("error")
+                            }
                         },
 
                         None => {
@@ -307,9 +311,9 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                         Some(db_val) => match &db_val.value {
                             DataType::List(existing_list) => existing_list.len(),
 
-                            DataType::String(_) => {
-                                panic!("error");
-                            }
+                            _ => 0,
+
+                            
                         },
                         None => 0,
                     };
@@ -355,9 +359,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                 }
                             },
 
-                            DataType::String(_) => {
-                                panic!("error")
-                            }
+                            _ => Value::NullBulkString
                         },
 
                         None => Value::NullBulkString,
@@ -460,12 +462,14 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                 match &db_val.value {
                                     DataType::String(_) => Value::SimpleString("string".to_string()),
                                     DataType::List(_) => Value::SimpleString("list".to_string()),
+                                    DataType::Stream(_) => Value::SimpleString("stream".to_string()),
                                 }
                             }
                             } else {
                                 match &db_val.value {
                                     DataType::String(_) => Value::SimpleString("string".to_string()),
                                     DataType::List(_) => Value::SimpleString("list".to_string()),
+                                    DataType::Stream(_) => Value::SimpleString("stream".to_string()), 
                                 }
                             }
                         }
@@ -487,9 +491,9 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                   for chunk in remaining_args.chunks(2) {
                     if chunk.len() == 2 {
-                        let field_v = unpack_bulk_str(chunk[0].clone()).unwrap();
+                        let field_v = unpack_bulk_str(chunk[1].clone()).unwrap();
 
-                        let field_k = unpack_bulk_str(chunk[1].clone()).unwrap();
+                        let field_k = unpack_bulk_str(chunk[0].clone()).unwrap();
 
                         fields.push((field_k,field_v));
                     }
@@ -502,7 +506,19 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                 let mut db_lock = db.lock().unwrap();
 
-                
+                match db_lock.get_mut(&key) {
+                    Some(db_val) => {
+                       if let DataType::Stream(ref mut entries)  = db_val.value {
+                        entries.push(entry);
+                       }
+                    }
+
+                    None => {
+                        db_lock.insert(key, DbValue { value: DataType::Stream(vec![entry]), expires_at: None, },);
+                    }
+                }
+                Value::BulkString(id)
+
 
 
 

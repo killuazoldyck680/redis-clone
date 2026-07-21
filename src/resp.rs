@@ -22,8 +22,8 @@ pub struct RespHandler {
 }
 
 pub struct StreamEntry {
-    id: String,
-    fields: Vec<(String, String)>,
+    pub id: String,
+    pub fields: Vec<(String, String)>,
 }
 impl Value {
     pub fn serialize(self) -> String {
