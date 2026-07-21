@@ -481,7 +481,22 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                   let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
                   let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-                  
+
+                  let remaining_args = &args[2..];
+                  let mut fields = Vec::new();
+
+                  for chunk in remaining_args.chunks(2) {
+                    if chunk.len() == 2 {
+                        let field_v = unpack_bulk_str(chunk[0].clone()).unwrap();
+
+                        let field_k = unpack_bulk_str(chunk[1].clone()).unwrap();
+
+                        fields.push((field_k,field_v));
+                    }
+                }
+
+
+
 
 
 
