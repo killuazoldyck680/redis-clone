@@ -493,7 +493,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                   let new_seq: u64 = second.parse().expect("invalid u64 for new_seq");
 
                   if new_ms == 0 && new_seq == 0 {
-                    Value::Error("ERR The ID specified in XADD must be greater than 0-0".to_string())
+                    return Value::Error("ERR The ID specified in XADD must be greater than 0-0".to_string())
                   }
 
                   
@@ -519,7 +519,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                 match db_lock.get_mut(&key) {
                     Some(db_val) => {
-                       if let DataType::Stream(ref mut entries)  = if let  Some(last_entry) = entries.last() {
+                       if let DataType::Stream(ref mut entries) = &mut db_val.value {  if  let  Some(last_entry) = entries.last() {
 
                   let (first,second) = last_entry.id.split_once('-').expect("missing hyphen");
 
@@ -529,9 +529,15 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                   let last_seq: u64 = second.parse().expect("invalid u64 for new_ms");
 
                   if new_ms < last_ms || new_ms == last_ms && new_seq <= last_seq {
-                    Value::Error("ERR The ID specified in XADD is equal or smaller than the target stream top item".to_string())
+                    return Value::Error("ERR The ID specified in XADD is equal or smaller than the target stream top item".to_string())
+                  } 
+                    
+                  
                   }
-                  }
+                  entries.push(entry);
+
+                  _ => return Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string());
+                }
                     }
 
                     None => {
