@@ -486,6 +486,16 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                   let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
+                  let (first,second) = id.split_once('-').expect("missing hyphen");
+
+                  let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
+
+                  let new_seq: u64 = second.parse().expect("invalid u64 for new_seq");
+
+                  if new_ms == 0 && new_seq == 0 {
+                    panic!("The ID specified in XADD must be greater than 0-0");
+                  }
+
                   let remaining_args = &args[2..];
                   let mut fields = Vec::new();
 
