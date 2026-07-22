@@ -486,16 +486,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                   let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-                  let (first,second) = id.split_once('-').expect("missing hyphen");
-
-                  let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
-
-                  let new_seq: u64 = second.parse().expect("invalid u64 for new_seq");
-
-                  if new_ms == 0 && new_seq == 0 {
-                    panic!("The ID specified in XADD must be greater than 0-0");
-                  }
-
+                  
                   let remaining_args = &args[2..];
                   let mut fields = Vec::new();
 
@@ -527,6 +518,28 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                         db_lock.insert(key, DbValue { value: DataType::Stream(vec![entry]), expires_at: None, },);
                     }
                 }
+                let (first,second) = id.split_once('-').expect("missing hyphen");
+
+                  let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
+
+                  let new_seq: u64 = second.parse().expect("invalid u64 for new_seq");
+
+                  if new_ms == 0 && new_seq == 0 {
+                    Value::Error("ERR The ID specified in XADD must be greater than 0-0".to_string())
+                  }
+
+                  let last_entry = entries.last();
+
+                  let (first,second) = last_entry.id.split_once('-').expect("missing hyphen");
+
+                  let last_ms: u64 = first.parse().expect("invalid u64 for last_ms");
+
+                  
+                  let last_seq: u64 = second.parse().expect("invalid u64 for new_ms");
+
+
+
+
                 Value::BulkString(id)
 
 
