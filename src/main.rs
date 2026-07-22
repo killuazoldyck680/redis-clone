@@ -486,6 +486,16 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                   let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
+                  let (first,second) = id.split_once('-').expect("missing hyphen");
+
+                  let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
+
+                  let new_seq: u64 = second.parse().expect("invalid u64 for new_seq");
+
+                  if new_ms == 0 && new_seq == 0 {
+                    Value::Error("ERR The ID specified in XADD must be greater than 0-0".to_string())
+                  }
+
                   
                   let remaining_args = &args[2..];
                   let mut fields = Vec::new();
@@ -509,26 +519,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                 match db_lock.get_mut(&key) {
                     Some(db_val) => {
-                       if let DataType::Stream(ref mut entries)  = db_val.value {
-                        entries.push(entry);
-                       }
-                    }
-
-                    None => {
-                        db_lock.insert(key, DbValue { value: DataType::Stream(vec![entry]), expires_at: None, },);
-                    }
-                }
-                let (first,second) = id.split_once('-').expect("missing hyphen");
-
-                  let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
-
-                  let new_seq: u64 = second.parse().expect("invalid u64 for new_seq");
-
-                  if new_ms == 0 && new_seq == 0 {
-                    Value::Error("ERR The ID specified in XADD must be greater than 0-0".to_string())
-                  }
-
-                  let last_entry = entries.last();
+                       if let DataType::Stream(ref mut entries)  = if let  Some(last_entry) = entries.last() {
 
                   let (first,second) = last_entry.id.split_once('-').expect("missing hyphen");
 
@@ -536,6 +527,20 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                   
                   let last_seq: u64 = second.parse().expect("invalid u64 for new_ms");
+
+                  if new_ms < last_ms || new_ms == last_ms && new_seq <= last_seq {
+                    Value::Error("ERR The ID specified in XADD is equal or smaller than the target stream top item".to_string())
+                  }
+                  }
+                    }
+
+                    None => {
+                        db_lock.insert(key, DbValue { value: DataType::Stream(vec![entry]), expires_at: None, },);
+                    }
+                }
+                
+
+                  
 
 
 
