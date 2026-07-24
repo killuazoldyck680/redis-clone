@@ -506,10 +506,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                             }
                         
 
-                        let entry = StreamEntry {
-                            id: id.clone(),
-                            fields,
-                        };
+                        
 
                         let mut db_lock = db.lock().unwrap();
 
@@ -518,6 +515,8 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                 DataType::Stream(entries) => {
                     let mut is_valid = true;
 
+                    if second_str == "*" {
+                        
                     if let Some(last_entry) = entries.last() {
                         let (first, second) = last_entry.id.as_str().split_once('-').expect("missing hyphen");
                         let last_ms: u64 = first.parse().expect("invalid u64 for last_ms");
@@ -527,13 +526,12 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                             is_valid = false;
                         }
 
-                        if second_str == "*" {
-
+                        
+                    }
                         } else {
 
                         }
 
-                    }
 
                     if is_valid {
                         entries.push(entry);
@@ -541,6 +539,11 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     } else {
                         Value::Error("ERR The ID specified in XADD is equal or smaller than the target stream top item".to_string())
                     }
+
+                    let entry = StreamEntry {
+                            id: id.clone(),
+                            fields,
+                        };
                 }
                 _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
             },
