@@ -312,8 +312,6 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                             DataType::List(existing_list) => existing_list.len(),
 
                             _ => 0,
-
-                            
                         },
                         None => 0,
                     };
@@ -359,7 +357,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                 }
                             },
 
-                            _ => Value::NullBulkString
+                            _ => Value::NullBulkString,
                         },
 
                         None => Value::NullBulkString,
@@ -455,118 +453,107 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     let checked_val = match db_lock.get(&key) {
                         Some(db_val) => {
                             if let Some(expiry) = db_val.expires_at {
-                            if Instant::now() > expiry {
-                               db_lock.remove(&key);
-                               Value::SimpleString("none".to_string()) 
-                            } else {
-                                match &db_val.value {
-                                    DataType::String(_) => Value::SimpleString("string".to_string()),
-                                    DataType::List(_) => Value::SimpleString("list".to_string()),
-                                    DataType::Stream(_) => Value::SimpleString("stream".to_string()),
+                                if Instant::now() > expiry {
+                                    db_lock.remove(&key);
+                                    Value::SimpleString("none".to_string())
+                                } else {
+                                    match &db_val.value {
+                                        DataType::String(_) => {
+                                            Value::SimpleString("string".to_string())
+                                        }
+                                        DataType::List(_) => {
+                                            Value::SimpleString("list".to_string())
+                                        }
+                                        DataType::Stream(_) => {
+                                            Value::SimpleString("stream".to_string())
+                                        }
+                                    }
                                 }
-                            }
                             } else {
                                 match &db_val.value {
-                                    DataType::String(_) => Value::SimpleString("string".to_string()),
+                                    DataType::String(_) => {
+                                        Value::SimpleString("string".to_string())
+                                    }
                                     DataType::List(_) => Value::SimpleString("list".to_string()),
-                                    DataType::Stream(_) => Value::SimpleString("stream".to_string()), 
+                                    DataType::Stream(_) => {
+                                        Value::SimpleString("stream".to_string())
+                                    }
                                 }
                             }
                         }
-                        None => Value::SimpleString("none".to_string()), 
+                        None => Value::SimpleString("none".to_string()),
                     };
 
                     checked_val
-
-
                 }
 
                 "xadd" => {
-                  let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-                  
+                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+                    let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-                  let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+                    let (first, second) = id.split_once('-').expect("missing hyphen");
+                    let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
+                    let new_seq: u64 = second.parse().expect("invalid u64 for new_seq");
 
-                  let (first,second) = id.split_once('-').expect("missing hyphen");
+                    if new_ms == 0 && new_seq == 0 {
+                        Value::Error(
+                            "ERR The ID specified in XADD must be greater than 0-0".to_string(),
+                        )
+                    } else {
+                        let remaining_args = &args[2..];
+                        let mut fields = Vec::new();
 
-                  let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
-
-                  let new_seq: u64 = second.parse().expect("invalid u64 for new_seq");
-
-                  if new_ms == 0 && new_seq == 0 {
-                    return Value::Error("ERR The ID specified in XADD must be greater than 0-0".to_string());
-                  }
-
-                  
-                  let remaining_args = &args[2..];
-                  let mut fields = Vec::new();
-
-                  for chunk in remaining_args.chunks(2) {
-                    if chunk.len() == 2 {
-                        let field_v = unpack_bulk_str(chunk[1].clone()).unwrap();
-
-                        let field_k = unpack_bulk_str(chunk[0].clone()).unwrap();
-
-                        fields.push((field_k,field_v));
-                    }
-                }
-
-                let entry = StreamEntry {
-                    id: id.clone(),
-                    fields
-                };
-
-                let mut db_lock = db.lock().unwrap();
-
-                match db_lock.get_mut(&key) {
-                    Some(db_val ) => match &mut db_val.value {
-                        DataType::Stream(ref mut entries) => {
-                            if let Some(last_entry) = entries.last() {
-                                let (first,second) = last_entry.id.split_once('-').expect("missing hyphen");
-
-                  let last_ms: u64 = first.parse().expect("invalid u64 for last_ms");
-
-                  
-                  let last_seq: u64 = second.parse().expect("invalid u64 for new_ms");
-
-                  if new_ms < last_ms || new_ms == last_ms && new_seq <= last_seq {
-                    return Value::Error("ERR The ID specified in XADD is equal or smaller than the target stream top item".to_string());
-                  }
-
+                        for chunk in remaining_args.chunks(2) {
+                            if chunk.len() == 2 {
+                                let field_k = unpack_bulk_str(chunk[0].clone()).unwrap();
+                                let field_v = unpack_bulk_str(chunk[1].clone()).unwrap();
+                                fields.push((field_k, field_v));
                             }
-                            entries.push(entry);
-
                         }
-                        _ =>  {return Value::Error("WRONGTYPE ...".to_string());}
-                    },
 
-                  
-                   
-                    
-                  
-                  
-                  
+                        let entry = StreamEntry {
+                            id: id.clone(),
+                            fields,
+                        };
 
-                    None => {
-                        db_lock.insert(key, DbValue { value: DataType::Stream(vec![entry]), expires_at: None, },);
+                        let mut db_lock = db.lock().unwrap();
+
+                        match db_lock.get_mut(&key) {
+            Some(db_val) => match &mut db_val.value {
+                DataType::Stream(entries) => {
+                    let mut is_valid = true;
+
+                    if let Some(last_entry) = entries.last() {
+                        let (first, second) = last_entry.id.as_str().split_once('-').expect("missing hyphen");
+                        let last_ms: u64 = first.parse().expect("invalid u64 for last_ms");
+                        let last_seq: u64 = second.parse().expect("invalid u64 for last_seq");
+
+                        if new_ms < last_ms || (new_ms == last_ms && new_seq <= last_seq) {
+                            is_valid = false;
+                        }
+                    }
+
+                    if is_valid {
+                        entries.push(entry);
+                        Value::BulkString(id)
+                    } else {
+                        Value::Error("ERR The ID specified in XADD is equal or smaller than the target stream top item".to_string())
                     }
                 }
-                
-
-                  
-
-
-
-
+                _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+            },
+            None => {
+                db_lock.insert(
+                    key,
+                    DbValue {
+                        value: DataType::Stream(vec![entry]),
+                        expires_at: None,
+                    },
+                );
                 Value::BulkString(id)
-
-
-
-
-
-
-
-
+            }
+        }
+                    }
                 }
 
                 c => panic!("Error {c}"),
