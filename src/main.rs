@@ -495,6 +495,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
                     let new_seq: u64 = second.parse().expect("invalid u64 for new_seq");
 
+                    let second_str = second;
                     if new_ms == 0 && new_seq == 0 {
                         Value::Error(
                             "ERR The ID specified in XADD must be greater than 0-0".to_string(),
@@ -531,6 +532,13 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                         if new_ms < last_ms || (new_ms == last_ms && new_seq <= last_seq) {
                             is_valid = false;
                         }
+
+                        if second_str == "*" {
+
+                        } else {
+                            
+                        }
+
                     }
 
                     if is_valid {
