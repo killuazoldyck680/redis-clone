@@ -658,20 +658,33 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                   let raw_end = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
-                  if raw_start.contains('-') {
-                    if let Some(l, r) = raw_start.split('-') {
-                    (let start_ms : u64 = l.parse().expect("failed to parse left part"),
+                  let (start_ms,start_seq) =  if raw_start.contains('-') {
+                     let (l, r) = raw_start.split_once('-').expect("missing hyphen"); 
+                    ( l.parse::<u64>().expect("failed to parse left part"),
 
-                        let start_seq : u64 = r.parse().expect("failed to parse right part"),
+                         r.parse::<u64>().expect("failed to parse right part"),
                     )
-                    }
+                    
                   } else {
                     (
-                        raw_start.parse()::<u64>().expect("invalid start_ms"),
+                        raw_start.parse::<u64>().expect("invalid start_ms"),
                         0,
 
                     )
-                  }
+                  };
+
+                  let (end_ms, end_seq) = if raw_end.contains('-') {
+                     let (l,r) = raw_end.split_once('-').expect("missing hyphen");
+
+                    ( l.parse::<u64>().expect("invalid end_ms"),
+                     r.parse::<u64>().expect("invalid end_seq"),
+                  )
+                  } else {
+                    (
+        raw_end.parse::<u64>().expect("invalid end_ms"),
+        u64::MAX, // Default sequence for end ID
+    )
+                  };
 
 
                 }
