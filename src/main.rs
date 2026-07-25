@@ -491,12 +491,15 @@ async fn handle_conn(stream: TcpStream, db: Db) {
     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
     let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-    if id == "*" {
+    let (new_ms, second_str) = if id == "*" {
         let new_ms = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+        (now, "*".to_string())
+
+        
     } else {
         let (first, second) = id.split_once('-').expect("missing hyphen");
-    let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
-    let second_str = second;
+    let parsed_ms: u64 = first.parse().expect("invalid u64 for new_ms");
+    (parsed_ms, second.to_string())
 
     }
 
