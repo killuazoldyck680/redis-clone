@@ -491,10 +491,16 @@ async fn handle_conn(stream: TcpStream, db: Db) {
     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
     let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-    let (first, second) = id.split_once('-').expect("missing hyphen");
+    if id == "*" {
+        let new_ms = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+    } else {
+        let (first, second) = id.split_once('-').expect("missing hyphen");
     let new_ms: u64 = first.parse().expect("invalid u64 for new_ms");
     let second_str = second;
 
+    }
+
+    
     let remaining_args = &args[2..];
     let mut fields = Vec::new();
 
