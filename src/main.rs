@@ -607,6 +607,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
         }
     }
 }
+
+"xrange" => {
+    
+}
                 c => panic!("Error {c}"),
             }
         } else {
