@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::{env, usize};
 use tokio::net::{TcpListener, TcpStream};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use resp::Value;
@@ -493,15 +494,15 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
     let (new_ms, second_str) = if id == "*" {
         let new_ms = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-        (now, "*".to_string())
+        (new_ms, "*".to_string())
 
-        
+
     } else {
         let (first, second) = id.split_once('-').expect("missing hyphen");
     let parsed_ms: u64 = first.parse().expect("invalid u64 for new_ms");
     (parsed_ms, second.to_string())
 
-    }
+    };
 
     
     let remaining_args = &args[2..];
