@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{env, usize};
+use std::{env, usize, vec};
 use tokio::net::{TcpListener, TcpStream};
 
 use anyhow::Result;
@@ -690,13 +690,27 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                   match db_lock.get_mut(&key) {
                     Some(db_val) => {
-                        match DataType::Stream(entries) {
-                            
+                        match &db_val.value {
+                            DataType::Stream(entries) => {
+                                let mut result_entries = Vec::new();
+
+                                for entry in entries {
+                                  let (e_r, e_l) = entry.id.split_once('-').unwrap();
+
+                                  let entry_ms: u64 = e_r.parse().unwrap();
+
+                                  let entry_Seq: u64 = e_l.parse().unwrap();
+                                  
+                                    
+                                }
+                            }
+
+                            _ => {}
                         }
                     }
 
                     None => {
-                        Value::Array(vec![])
+                        Value::Array(vec![]),
                     }
                   }
 
