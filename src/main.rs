@@ -686,7 +686,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
     )
                   };
 
-                  let db_lock = db.lock().unwrap();
+                  let mut db_lock = db.lock().unwrap();
 
                   match db_lock.get_mut(&key) {
                     Some(db_val) => {
@@ -695,26 +695,41 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                 let mut result_entries = Vec::new();
 
                                 for entry in entries {
-                                  let (e_r, e_l) = entry.id.split_once('-').unwrap();
+                                  let (e_ms_str, e_seq_str) = entry.id.split_once('-').unwrap();
 
-                                  let entry_ms: u64 = e_r.parse().unwrap();
+                                  let entry_ms: u64 = e_ms_str.parse().unwrap();
 
-                                  let entry_seq: u64 = e_l.parse().unwrap();
+                                  let entry_seq: u64 = e_seq_str.parse().unwrap();
 
                                   let is_after_start = (entry_ms > start_ms) || (entry_ms == start_ms && entry_seq >= start_seq);
 
                                   let is_before_end = (entry_ms < end_ms) || (entry_ms == end_ms && entry_seq <= end_seq);
 
+                                  if is_after_start && is_before_end {
+                                    let mut fields_resp = Vec::new();
+                                    for (k,v) in &entry.fields {
+                                        fields_resp.push(Value::BulkString(k.clone()));
+                                        fields_resp.push(Value::BulkString(v.clone()));
+                                    }
+
+                                    result_entries.push(Value::Array(vec![
+                                        Value::BulkString(entry.id.clone()),
+                                        Value::Array(fields_resp),
+                                    ]));
+                                  }
+
 
                                 }
+
+                                Value::Array(result_entries)
                             }
 
-                            _ => {}
+                            _ => Value::Array(vec![]),
                         }
                     }
 
                     None => {
-                        Value::Array(vec![]),
+                        Value::Array(vec![])
                     }
                   }
 
