@@ -686,6 +686,20 @@ async fn handle_conn(stream: TcpStream, db: Db) {
     )
                   };
 
+                  let db_lock = db.lock().unwrap();
+
+                  match db_lock.get_mut(&key) {
+                    Some(db_val) => {
+                        match DataType::Stream(entries) {
+                            
+                        }
+                    }
+
+                    None => {
+                        Value::Array(vec![])
+                    }
+                  }
+
 
                 }
                 c => panic!("Error {c}"),
