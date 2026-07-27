@@ -748,6 +748,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
 
                 }
+
+                "xread" => {
+                    
+                }
                 c => panic!("Error {c}"),
             }
         } else {
