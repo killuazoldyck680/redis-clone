@@ -658,20 +658,28 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                   let raw_end = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
-                  let (start_ms,start_seq) =  if raw_start.contains('-') {
+                  let (start_ms,start_seq) =
+                  if raw_start == "-" {
+                    (0,0)
+                  } else if 
+                  raw_start.contains('-') {
                      let (l, r) = raw_start.split_once('-').expect("missing hyphen"); 
                     ( l.parse::<u64>().expect("failed to parse left part"),
 
                          r.parse::<u64>().expect("failed to parse right part"),
                     )
                     
-                  } else {
+                  }
+                 else {
                     (
                         raw_start.parse::<u64>().expect("invalid start_ms"),
                         0,
 
                     )
                   };
+                  
+                  
+                      
 
                   let (end_ms, end_seq) = if raw_end.contains('-') {
                      let (l,r) = raw_end.split_once('-').expect("missing hyphen");
