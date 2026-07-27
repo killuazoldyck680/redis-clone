@@ -681,7 +681,12 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                   
                       
 
-                  let (end_ms, end_seq) = if raw_end.contains('-') {
+                  let (end_ms, end_seq) = if raw_end == "+" {
+                    (u64::MAX, u64::MAX)
+                  }
+                  
+                  
+                  else if raw_end.contains('-') {
                      let (l,r) = raw_end.split_once('-').expect("missing hyphen");
 
                     ( l.parse::<u64>().expect("invalid end_ms"),
