@@ -764,8 +764,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     match db_lock.get(&key) {
                         Some(db_val) => {
-                            match db_val.value {
+                            match &db_val.value {
                                 DataType::Stream(entries) => {
+                                    let mut result_entries = Vec::new();
+
                                     for entry in entries {
                                         let (e_ms_str, e_seq_str) = entry.id.split_once('-').unwrap();
 
@@ -774,6 +776,15 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                         let entry_seq = e_seq_str.parse::<u64>().unwrap();
 
                                         let is_after = (entry_ms > start_ms) || (entry_ms == start_ms && entry_seq > start_seq);
+
+                                        if is_after {
+                                           Value::Array(vec![
+    Value::Array(vec![
+        Value::BulkString(key),
+        Value::Array(result_entries),
+    ])
+]) 
+                                        }
                                     }
                                 }
                             }
