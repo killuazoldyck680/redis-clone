@@ -771,7 +771,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                                         let entry_ms = e_ms_str.parse::<u64>().unwrap();
 
-                                        let entry_seq
+                                        let entry_seq = e_seq_str.parse::<u64>().unwrap();
                                     }
                                 }
                             }
