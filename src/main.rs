@@ -750,7 +750,33 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                 }
 
                 "xread" => {
-                    
+                    let key = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+                    let raw_id = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
+
+                    let (l, r ) = raw_id.split_once('-').expect("missing hyphen");
+
+                    let start_ms = l.parse::<u64>().expect("invalid start_ms");
+
+                    let start_seq = r.parse::<u64>().expect("invalid start_seq");
+
+                    let db_lock = db.lock().unwrap();
+
+                    match db_lock.get(&key) {
+                        Some(db_val) => {
+                            match db_val.value {
+                                DataType::Stream(entries) => {
+                                    for entry in entries {
+                                        let (e_ms_str, e_seq_str) = entry.id.split_once('-').unwrap();
+
+                                        let entry_ms = e_ms_str.parse::<u64>().unwrap();
+
+                                        let entry_seq
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 c => panic!("Error {c}"),
             }
