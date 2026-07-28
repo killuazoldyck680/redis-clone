@@ -780,14 +780,28 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                         if is_after {
                                           let mut fields_resp = Vec::new();
                                            for (k,v) in &entry.fields {
-                                            fields_resp.push(k.clone());
-                                            fields_resp.push(v.clone());
-                                          } 
+                                            fields_resp.push(Value::BulkString(k.clone()));
+                                            fields_resp.push(Value::BulkString(v.clone()));
+                                          }
+
+                                          result_entries.push(Value::Array(vec![
+                                            Value::BulkString(entry.id.clone()),
+                                            Value::Array(fields_resp),
+                                          ]));
                                         }
                                     }
+                                    Value::Array(vec![Value::Array(vec![
+                    Value::BulkString(key),
+                    Value::Array(result_entries),
+                ])])
                                 }
+
+                                _ => Value::Array(vec![]),
                             }
+                            
+
                         }
+                        None => Value::Array(vec![]),
                     }
                 }
                 c => panic!("Error {c}"),
