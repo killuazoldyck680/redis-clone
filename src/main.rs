@@ -778,12 +778,11 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                         let is_after = (entry_ms > start_ms) || (entry_ms == start_ms && entry_seq > start_seq);
 
                                         if is_after {
-                                           Value::Array(vec![
-    Value::Array(vec![
-        Value::BulkString(key),
-        Value::Array(result_entries),
-    ])
-]) 
+                                          let mut fields_resp = Vec::new();
+                                           for (k,v) in &entry.fields {
+                                            fields_resp.push(k.clone());
+                                            fields_resp.push(v.clone());
+                                          } 
                                         }
                                     }
                                 }
