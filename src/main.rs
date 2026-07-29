@@ -765,7 +765,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     let id = unpack_bulk_str(ids[i]);
 
-                        let (l, r ) = id[i].split_once('-').expect("missing hyphen");
+                        let (l, r ) = id.split_once('-').expect("missing hyphen");
 
                     let start_ms = l.parse::<u64>().expect("invalid start_ms");
 
@@ -799,10 +799,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                           ]));
                                         }
                                     }
-                                    outer_results.push(Value::Array(vec![Value::Array(vec![
+                                    outer_results.push(Value::Array(vec![
                     Value::BulkString(key.clone()),
                     Value::Array(result_entries),
-                ])]));
+                ]));
                                 }
 
                                 _ => Value::Array(vec![]),
