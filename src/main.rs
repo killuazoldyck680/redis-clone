@@ -754,7 +754,9 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     let num_streams = stream_args.len() / 2;
 
-                    
+                    let (keys, ids) = stream_args.split_at(num_streams);
+
+
                     let (l, r ) = raw_id.split_once('-').expect("missing hyphen");
 
                     let start_ms = l.parse::<u64>().expect("invalid start_ms");
