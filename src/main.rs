@@ -756,7 +756,8 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     let (keys, ids) = stream_args.split_at(num_streams);
 
-
+                    let mut outer_results = Vec::new();
+                    
                     let (l, r ) = raw_id.split_once('-').expect("missing hyphen");
 
                     let start_ms = l.parse::<u64>().expect("invalid start_ms");
