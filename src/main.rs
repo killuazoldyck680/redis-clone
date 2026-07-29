@@ -765,19 +765,11 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     let id = unpack_bulk_str(ids[i]);
 
-
-                    }
-
-                    
-
-
-                    let (l, r ) = raw_id.split_once('-').expect("missing hyphen");
+                        let (l, r ) = id[i].split_once('-').expect("missing hyphen");
 
                     let start_ms = l.parse::<u64>().expect("invalid start_ms");
 
                     let start_seq = r.parse::<u64>().expect("invalid start_seq");
-
-                    let db_lock = db.lock().unwrap();
 
                     match db_lock.get(&key) {
                         Some(db_val) => {
@@ -807,10 +799,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                           ]));
                                         }
                                     }
-                                    Value::Array(vec![Value::Array(vec![
-                    Value::BulkString(key),
+                                    outer_results.push(Value::Array(vec![Value::Array(vec![
+                    Value::BulkString(key.clone()),
                     Value::Array(result_entries),
-                ])])
+                ])]));
                                 }
 
                                 _ => Value::Array(vec![]),
@@ -818,8 +810,21 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                             
 
                         }
-                        None => Value::Array(vec![]),
+                        None => outer_results.push(Value::Array(vec![Value::BulkString(key.clone()), Value::Array(vec![])])),
                     }
+
+
+                    }
+
+                    Value::Array(outer_results)
+
+
+                    
+
+
+                    
+                    
+                    
                 }
                 c => panic!("Error {c}"),
             }
