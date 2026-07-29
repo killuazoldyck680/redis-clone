@@ -750,10 +750,11 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                 }
 
                 "xread" => {
-                    let key = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+                    let stream_args = &args[1..];
 
-                    let raw_id = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
+                    let num_streams = stream_args.len() / 2;
 
+                    
                     let (l, r ) = raw_id.split_once('-').expect("missing hyphen");
 
                     let start_ms = l.parse::<u64>().expect("invalid start_ms");
