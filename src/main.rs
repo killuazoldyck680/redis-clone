@@ -751,17 +751,23 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                 "xread" => {
 
-                    let block_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+                    let block_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap().parse::<String>();
 
-                    if block_arg == "block" {
-                        let ms = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap().parse::<u64>();
+                    if block_arg.to_lowercase() == "block" {
+                        let block_ms = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap().parse::<u64>();
+
+                        stream_args_start_index = 3
 
 
 
 
+
+                    } else {
+                        block_ms = 0     
+                        stream_args_start_index = 1     
                     }
 
-                    let stream_args = &args[1..];
+                    let stream_args = &args[stream_args_start_index..];
 
                     let num_streams = stream_args.len() / 2;
 
@@ -830,7 +836,9 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     Value::Array(outer_results)
 
 
-                    
+                    fn helper(keys,ids, db) {
+                        
+                    }
 
 
                     
