@@ -731,91 +731,102 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                 }
 
                 "xread" => {
-                    let mut block_ms = 0;
-                    let mut stream_args_start_index = 1;
+    let mut block_ms: Option<u64> = None;
+    let mut stream_args_start_index = 1;
 
-                    let block_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+    let block_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-                    if block_arg.to_lowercase() == "block" {
-                        block_ms = unpack_bulk_str(args.get(1).cloned().unwrap())
-                            .unwrap()
-                            .parse::<u64>()
-                            .unwrap();
+    if block_arg.to_lowercase() == "block" {
+        let ms = unpack_bulk_str(args.get(1).cloned().unwrap())
+            .unwrap()
+            .parse::<u64>()
+            .unwrap();
+        block_ms = Some(ms);
+        stream_args_start_index = 3;
+    }
 
-                        stream_args_start_index = 3;
-                    } // Closes `if block_arg`
+    let stream_args = &args[stream_args_start_index..];
+    let num_streams = stream_args.len() / 2;
+    let (keys, ids) = stream_args.split_at(num_streams);
 
-                    let stream_args = &args[stream_args_start_index..];
-                    let num_streams = stream_args.len() / 2;
-                    let (keys, ids) = stream_args.split_at(num_streams);
+    let read_streams = || {
+        let mut outer_results = Vec::new();
+        let db_lock = db.lock().unwrap();
 
-                    let read_streams = || {
-                        let mut outer_results = Vec::new();
-                        let db_lock = db.lock().unwrap();
+        for i in 0..num_streams {
+            let key = unpack_bulk_str(keys[i].clone()).unwrap();
+            let id = unpack_bulk_str(ids[i].clone()).unwrap();
 
-                        // FIXED: Changed 0..=num_streams to 0..num_streams to avoid out-of-bounds panic
-                        for i in 0..num_streams {
-                            let key = unpack_bulk_str(keys[i].clone()).unwrap();
-                            let id = unpack_bulk_str(ids[i].clone()).unwrap();
+            let (l, r) = id.split_once('-').expect("missing hyphen");
+            let start_ms = l.parse::<u64>().expect("invalid start_ms");
+            let start_seq = r.parse::<u64>().expect("invalid start_seq");
 
-                            let (l, r) = id.split_once('-').expect("missing hyphen");
-                            let start_ms = l.parse::<u64>().expect("invalid start_ms");
-                            let start_seq = r.parse::<u64>().expect("invalid start_seq");
+            if let Some(db_val) = db_lock.get(&key) {
+                if let DataType::Stream(entries) = &db_val.value {
+                    let mut result_entries = Vec::new();
 
-                            // Simplified matching with `if let` to ensure exact brace pairs
-                            if let Some(db_val) = db_lock.get(&key) {
-                                if let DataType::Stream(entries) = &db_val.value {
-                                    let mut result_entries = Vec::new();
+                    for entry in entries {
+                        let (e_ms_str, e_seq_str) = entry.id.split_once('-').unwrap();
+                        let entry_ms = e_ms_str.parse::<u64>().unwrap();
+                        let entry_seq = e_seq_str.parse::<u64>().unwrap();
 
-                                    for entry in entries {
-                                        let (e_ms_str, e_seq_str) =
-                                            entry.id.split_once('-').unwrap();
-                                        let entry_ms = e_ms_str.parse::<u64>().unwrap();
-                                        let entry_seq = e_seq_str.parse::<u64>().unwrap();
+                        let is_after = (entry_ms > start_ms)
+                            || (entry_ms == start_ms && entry_seq > start_seq);
 
-                                        let is_after = (entry_ms > start_ms)
-                                            || (entry_ms == start_ms && entry_seq > start_seq);
+                        if is_after {
+                            let mut fields_resp = Vec::new();
+                            for (k, v) in &entry.fields {
+                                fields_resp.push(Value::BulkString(k.clone()));
+                                fields_resp.push(Value::BulkString(v.clone()));
+                            }
 
-                                        if is_after {
-                                            let mut fields_resp = Vec::new();
-                                            for (k, v) in &entry.fields {
-                                                fields_resp.push(Value::BulkString(k.clone()));
-                                                fields_resp.push(Value::BulkString(v.clone()));
-                                            } // Closes `for (k, v)`
-
-                                            result_entries.push(Value::Array(vec![
-                                                Value::BulkString(entry.id.clone()),
-                                                Value::Array(fields_resp),
-                                            ]));
-                                        } // Closes `if is_after`
-                                    } // Closes `for entry`
-
-                                    if !result_entries.is_empty() {
-                                        outer_results.push(Value::Array(vec![
-                                            Value::BulkString(key),
-                                            Value::Array(result_entries),
-                                        ]));
-                                    } // Closes `if !result_entries`
-                                } // Closes `if let DataType::Stream`
-                            } // Closes `if let Some`
-                        } // Closes `for i`
-
-                        outer_results
-                    }; // Closes closure `read_streams`
-
-                    let mut results = read_streams();
-
-                    if results.is_empty() && block_ms > 0 {
-                        std::thread::sleep(std::time::Duration::from_millis(block_ms));
-                        results = read_streams();
-                    } // Closes `if results.is_empty()`
-
-                    if results.is_empty() && block_ms > 0 {
-                        Value::NullArray
-                    } else {
-                        Value::Array(results)
+                            result_entries.push(Value::Array(vec![
+                                Value::BulkString(entry.id.clone()),
+                                Value::Array(fields_resp),
+                            ]));
+                        }
                     }
-                } // Closes `"xread" =>`
+
+                    if !result_entries.is_empty() {
+                        outer_results.push(Value::Array(vec![
+                            Value::BulkString(key),
+                            Value::Array(result_entries),
+                        ]));
+                    }
+                }
+            }
+        }
+
+        outer_results
+    };
+
+    let mut results = read_streams();
+
+    
+    if results.is_empty() && block_ms.is_some() {
+        let timeout = block_ms.unwrap();
+        let start_time = std::time::Instant::now();
+
+        loop {
+            if timeout > 0 && start_time.elapsed().as_millis() as u64 >= timeout {
+                break;
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(20));
+
+            results = read_streams();
+            if !results.is_empty() {
+                break;
+            }
+        }
+    }
+
+    if results.is_empty() && block_ms.is_some() {
+        Value::NullArray
+    } else {
+        Value::Array(results)
+    }
+} 
                 c => panic!("Error {c}"),
             }
         } else {
