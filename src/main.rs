@@ -751,21 +751,28 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                 "xread" => {
 
-                    let block_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap().parse::<String>();
+                    let mut block_ms:  = 0;
+                    let mut stream_args_start_index = 1;
+
+
+
+                    let block_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+                    
+                
+
 
                     if block_arg.to_lowercase() == "block" {
-                        let block_ms = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap().parse::<u64>();
+                         block_ms = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap().parse::<u64>();
 
-                        stream_args_start_index = 3
-
-
-
+                        
+                        stream_args_start_index = 3;
 
 
-                    } else {
-                        block_ms = 0     
-                        stream_args_start_index = 1     
-                    }
+
+
+
+                    } 
 
                     let stream_args = &args[stream_args_start_index..];
 
@@ -818,7 +825,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                           ]));
                                         }
                                     }
-                    }
+                    
 
                     
                                     if !result_entries.is_empty() {
@@ -829,18 +836,31 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                     }
                                 }
 
-                                _ => {}
+                        
                             }
                             
 
                         }
-                        None => outer_results.push(Value::Array(vec![Value::BulkString(key), Value::Array(vec![])])),
+
+                        outer_results
+                        
+                    };
+
+
+                    let mut results = read.streams();
+
+                    if results.is_empty() && block_ms > 0 {
+                       std::thread::sleep(std::time::Duration::from_millis(block_ms));
+        results = read_streams(); 
                     }
 
-
+                    if results.is_empty() && block_ms > 0 {
+                        Value::NullArray 
+                    } else {
+                        Value::Array(results)
                     }
 
-                    outer_results
+                    
 
 
                     
