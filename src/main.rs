@@ -774,10 +774,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     let (keys, ids) = stream_args.split_at(num_streams);
 
                     let read_streams = || {
-                        
-                    }
-
-                    let mut outer_results = Vec::new();
+                        let mut outer_results = Vec::new();
 
                     let db_lock = db.lock().unwrap();
 
@@ -791,7 +788,8 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                     let start_ms = l.parse::<u64>().expect("invalid start_ms");
 
                     let start_seq = r.parse::<u64>().expect("invalid start_seq");
-
+                        
+                        
                     match db_lock.get(&key) {
                         Some(db_val) => {
                             match &db_val.value {
@@ -820,10 +818,15 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                                           ]));
                                         }
                                     }
-                                    outer_results.push(Value::Array(vec![
+                    }
+
+                    
+                                    if !result_entries.is_empty() {
+                                        outer_results.push(Value::Array(vec![
                     Value::BulkString(key),
                     Value::Array(result_entries),
                 ]));
+                                    }
                                 }
 
                                 _ => {}
@@ -837,7 +840,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
                     }
 
-                    Value::Array(outer_results)
+                    outer_results
 
 
                     
