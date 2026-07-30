@@ -750,6 +750,17 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                 }
 
                 "xread" => {
+
+                    let block_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+                    if block_arg == "block" {
+                        let ms = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap().parse::<u64>();
+
+
+
+
+                    }
+
                     let stream_args = &args[1..];
 
                     let num_streams = stream_args.len() / 2;
