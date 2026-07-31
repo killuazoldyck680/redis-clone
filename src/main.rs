@@ -731,12 +731,14 @@ async fn handle_conn(stream: TcpStream, db: Db) {
                 }
 
                 "xread" => {
+
+
     let mut block_ms: Option<u64> = None;
     let mut stream_args_start_index = 1;
 
-    let block_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
-    if block_arg.to_lowercase() == "block" {
+    if let Some(first_arg) = args.get(0) {
+        let block_arg = unpack_bulk_str(first_arg.clone()).unwrap();
+        if block_arg.to_lowercase() == "block" {
         let ms = unpack_bulk_str(args.get(1).cloned().unwrap())
             .unwrap()
             .parse::<u64>()
@@ -744,6 +746,11 @@ async fn handle_conn(stream: TcpStream, db: Db) {
         block_ms = Some(ms);
         stream_args_start_index = 3;
     }
+
+    }
+
+    
+    
 
     let stream_args = &args[stream_args_start_index..];
     let num_streams = stream_args.len() / 2;
