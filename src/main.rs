@@ -756,6 +756,12 @@ async fn handle_conn(stream: TcpStream, db: Db) {
     let num_streams = stream_args.len() / 2;
     let (keys, ids) = stream_args.split_at(num_streams);
 
+    let resolved_ids : Vec<String> = Vec::new();
+
+    for (key, id) in keys {
+        
+    }
+
     let read_streams = || {
         let mut outer_results = Vec::new();
         let db_lock = db.lock().unwrap();
