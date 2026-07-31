@@ -760,7 +760,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
     for i in 0..num_streams {
         let key = unpack_bulk_str(keys.get(i).cloned().unwrap()).unwrap();
-        let id = unpack_bulk_str(ids.get(i).unwrap()).unwrap();
+        let id = unpack_bulk_str(ids.get(i).cloned().unwrap()).unwrap();
 
         let resolved_id = if id.as_str() == "$" {
     let db_lock = db.lock().unwrap();
