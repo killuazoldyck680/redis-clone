@@ -756,22 +756,27 @@ async fn handle_conn(stream: TcpStream, db: Db) {
     let num_streams = stream_args.len() / 2;
     let (keys, ids) = stream_args.split_at(num_streams);
 
-    let resolved_ids : Vec<String> = Vec::new();
+    let mut resolved_ids : Vec<String> = Vec::new();
 
     for i in 0..num_streams {
-        let key = &keys[i];
-        let id = &ids[i];
+        let key = unpack_bulk_str(keys.get(i).cloned().unwrap()).unwrap();
+        let id = unpack_bulk_str(ids.get(i).unwrap()).unwrap();
 
         let resolved_id = if id.as_str() == "$" {
-            let db_lock = db.lock().unwrap();
+    let db_lock = db.lock().unwrap();
 
-            db_lock.get(key)
-            .and_then(|stream| stream.entries.last())
-            .map(|entry| entry.id.clone())
-            .unwrap_or_else(|| "0-0".to_string())
+    let last_id = db_lock.get(&key).and_then(|db_val| {
+        if let DataType::Stream(entries) = &db_val.value {
+            entries.last().map(|e| e.id.clone())
         } else {
-            id.clone()
-        } ;
+            None
+        }
+    });
+
+    last_id.unwrap_or_else(|| "0-0".to_string())
+} else {
+    id
+}; 
 
         resolved_ids.push(resolved_id);
     }
@@ -782,7 +787,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
         for i in 0..num_streams {
             let key = unpack_bulk_str(keys[i].clone()).unwrap();
-            let id = unpack_bulk_str(ids[i].clone()).unwrap();
+            let id = &resolved_ids[i];
 
             let (l, r) = id.split_once('-').expect("missing hyphen");
             let start_ms = l.parse::<u64>().expect("invalid start_ms");
