@@ -758,8 +758,22 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
     let resolved_ids : Vec<String> = Vec::new();
 
-    for (key, id) in keys {
-        
+    for i in 0..num_streams {
+        let key = &keys[i];
+        let id = &ids[i];
+
+        let resolved_id = if id.as_str() == "$" {
+            let db_lock = db.lock().unwrap();
+
+            db_lock.get(key)
+            .and_then(|stream| stream.entries.last())
+            .map(|entry| entry.id.clone())
+            .unwrap_or_else(|| "0-0".to_string())
+        } else {
+            id.clone()
+        } ;
+
+        resolved_ids.push(resolved_id);
     }
 
     let read_streams = || {
