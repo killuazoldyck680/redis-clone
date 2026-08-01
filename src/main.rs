@@ -865,9 +865,13 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
            let db_lock = db.lock().unwrap();
 
-           match db_lock.get_mut(&key)  {
+           match db_lock.get_mut(&arg)  {
             Some(db_val) => {
-                Value::Integer(())
+                let new_value = db_val.value.parse::<i64>().unwrap();
+
+                new_value + 1;
+
+                db_val.value = new_value.to_string()
             }
            }
         }
