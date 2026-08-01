@@ -859,6 +859,18 @@ async fn handle_conn(stream: TcpStream, db: Db) {
         Value::Array(results)
     }
 } 
+
+        "incr" => {
+           let arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap(); 
+
+           let db_lock = db.lock().unwrap();
+
+           match db_lock.get_mut(&key)  {
+            Some(db_val) => {
+                Value::Integer(())
+            }
+           }
+        }
                 c => panic!("Error {c}"),
             }
         } else {
