@@ -861,7 +861,13 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 } 
 
         "incr" => {
-           let arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap(); 
+           
+            let arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+            Err() => {
+              println!("ERR value is not an integer or out of range")  
+            }
+        
 
            let mut db_lock = db.lock().unwrap();
 
