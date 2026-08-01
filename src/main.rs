@@ -901,6 +901,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
             
            }
         }
+         
+         "multi" => {
+            Value::SimpleString("OK".to_string())
+         }
                 c => panic!("Error {c}"),
             }
         } else {
