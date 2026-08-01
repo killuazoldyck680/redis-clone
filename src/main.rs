@@ -864,20 +864,27 @@ async fn handle_conn(stream: TcpStream, db: Db) {
            
             let arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-            Err() => {
-              println!("ERR value is not an integer or out of range")  
-            }
-        
+            
 
            let mut db_lock = db.lock().unwrap();
 
            match db_lock.get_mut(&arg)  {
             Some(db_val) => {
                 if let DataType::String(ref current_str) = db_val.value {
-                    let mut new_value = current_str.parse::<i64>().unwrap();
-                    new_value += 1;
-                    db_val.value = DataType::String(new_value.to_string());
-                    Value::Integer(new_value)
+                    match current_str.parse::<i64>() {
+                        Ok(mut num) => {
+                            num += 1;
+                            db_val.value = DataType::String(num.to_string());
+
+                            Value::Integer(num)
+                        }
+
+                        Err(_) => {
+                           Value::Error("ERR value is not an integer or out of range".to_string()) 
+                        }
+                    }
+
+                    
                 } else {
                     panic!("Value is not a string");
                 }
