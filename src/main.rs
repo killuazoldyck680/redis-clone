@@ -867,12 +867,16 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
            match db_lock.get_mut(&arg)  {
             Some(db_val) => {
-                let new_value = db_val.value.parse::<i64>().unwrap();
+                let mut new_value = db_val.value.parse::<i64>().unwrap();
 
-                new_value + 1;
+                new_value += 1;
 
-                db_val.value = new_value.to_string()
+                db_val.value = DataType::String(new_value.to_string());
             }
+
+            None => panic!("argument missing")
+
+            Value::Integer(new_value)
            }
         }
                 c => panic!("Error {c}"),
