@@ -880,7 +880,7 @@ async fn handle_conn(stream: TcpStream, db: Db) {
             }
 
             None => {
-                 = db_lock.insert(arg, DataType::String("1".to_string()));
+                  db_lock.insert(arg, DbValue { value: DataType::String("1".to_string()), expires_at: None });
 
                 Value::Integer(1)
             }
