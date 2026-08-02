@@ -903,7 +903,9 @@ async fn handle_conn(stream: TcpStream, db: Db) {
         }
          
          "multi" => {
-            Value::SimpleString("OK".to_string())
+            let in_transaction = false;
+
+            let command_queue : Vec<Value> = Vec::new();
          }
                 c => panic!("Error {c}"),
             }
