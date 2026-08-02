@@ -51,31 +51,9 @@ async fn main() {
     }
 }
 
-
-async fn handle_conn(stream: TcpStream, db: Db) {
-    let mut handler = resp::RespHandler::new(stream);
-
-    let mut in_transaction = false;
-
-let mut command_queue : Vec<Value> = Vec::new();
-
-
-    println!("Starting read loop");
-
-    loop {
-        let value = handler.read_value().await.unwrap();
-
-        println!("Got value {:?}", value);
-
-        let response = if let Some(v) = value {
-            let (command, args) = extract_command(v).unwrap();
-
-            if in_transaction && command.trim() !== "exec" && command.trim() != "discard" {
-                command.queue.push(v);
-                Value::SimpleString("Queued.to_string")
-            } else {
-            match command.trim() {
-                "ping" => Value::SimpleString("PONG".to_string()),
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
+    match command.to_lowercase().as_str() {
+        "ping" => Value::SimpleString("PONG".to_string()),
                 "echo" => args.first().unwrap().clone(),
 
                 "set" => {
@@ -912,6 +890,38 @@ let mut command_queue : Vec<Value> = Vec::new();
             
            }
         }
+
+        _ => Value::Error("ERR unknown command".to_string())
+    }
+}
+
+
+async fn handle_conn(stream: TcpStream, db: Db) {
+    let mut handler = resp::RespHandler::new(stream);
+
+    let mut in_transaction = false;
+
+let mut command_queue : Vec<Value> = Vec::new();
+
+
+    println!("Starting read loop");
+
+    loop {
+        let value = handler.read_value().await.unwrap();
+
+        println!("Got value {:?}", value);
+
+        let response = if let Some(v) = value {
+            let (command, args) = extract_command(v).unwrap();
+
+            let cmd_name = command.trim().to_lowercase();
+
+            if in_transaction && cmd_name != "exec" && cmd_name != "discard" {
+                command_queue.push(v);
+                Value::SimpleString("Queued.to_string".to_string())
+            } else {
+            match cmd_name.as_str() {
+                
          
          
          "multi" => {
@@ -931,13 +941,16 @@ let mut command_queue : Vec<Value> = Vec::new();
                 let mut results = Vec::new();
 
 
-                for queued_cmd in command_queue.drain(..) {
-                    let cmd_name = extract_name(&queued_cmd);
+                for queued_v in command_queue.drain(..) {
+                    let (q_cmd, q_args) = extract_command(queued_v).unwrap();
 
-                    let response_value = match cmd.name.as_str() {
+                    let res = execute_command(&q_cmd, q_args, &db).await;
 
-                    }
+                    results.push(res);
+
+                    
                 }
+                Value::Array(results)
             }
          }
                 c => panic!("Error {c}"),
