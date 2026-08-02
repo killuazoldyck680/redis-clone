@@ -917,6 +917,10 @@ let command_queue : Vec<Value> = Vec::new();
 
             Value::SimpleString("OK".to_string())
          }
+
+         "exec" => {
+            
+         }
                 c => panic!("Error {c}"),
             }
         } else {
