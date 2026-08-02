@@ -51,8 +51,14 @@ async fn main() {
     }
 }
 
+
 async fn handle_conn(stream: TcpStream, db: Db) {
     let mut handler = resp::RespHandler::new(stream);
+
+    let in_transaction = false;
+
+let command_queue : Vec<Value> = Vec::new();
+
 
     println!("Starting read loop");
 
@@ -902,14 +908,14 @@ async fn handle_conn(stream: TcpStream, db: Db) {
            }
         }
          
+         
          "multi" => {
-            let in_transaction = false;
+            
+            in_transaction = true;
 
-            let command_queue : Vec<Value> = Vec::new();
+            command_queue.clear();
 
-            if !in_transaction {
-                
-            }
+            Value::SimpleString("OK".to_string())
          }
                 c => panic!("Error {c}"),
             }
