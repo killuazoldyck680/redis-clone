@@ -912,13 +912,13 @@ let mut command_queue : Vec<Value> = Vec::new();
         println!("Got value {:?}", value);
 
         let response = if let Some(v) = value {
-            let (command, args) = extract_command(v).unwrap();
+            let (command, args) = extract_command(v.clone()).unwrap();
 
             let cmd_name = command.trim().to_lowercase();
 
             if in_transaction && cmd_name != "exec" && cmd_name != "discard" {
                 command_queue.push(v);
-                Value::SimpleString("Queued.to_string".to_string())
+                Value::SimpleString("Queued".to_string())
             } else {
             match cmd_name.as_str() {
                 
@@ -953,7 +953,7 @@ let mut command_queue : Vec<Value> = Vec::new();
                 Value::Array(results)
             }
          }
-                c => panic!("Error {c}"),
+                c => execute_command(c, args, &db).await
             }
         }
         } else {
