@@ -919,7 +919,21 @@ let command_queue : Vec<Value> = Vec::new();
          }
 
          "exec" => {
-            
+            if !in_transaction {
+                Value::Error("ERR EXEC without MULTI".to_string())
+            } else {
+                in_transaction = false;
+                let mut results = Vec::new();
+
+
+                for queued_cmd in command_queue.drain(..) {
+                    let cmd_name = extract_name(&queued_cmd);
+
+                    let response_value = match cmd.name.as_str() {
+                        
+                    }
+                }
+            }
          }
                 c => panic!("Error {c}"),
             }
