@@ -55,9 +55,9 @@ async fn main() {
 async fn handle_conn(stream: TcpStream, db: Db) {
     let mut handler = resp::RespHandler::new(stream);
 
-    let in_transaction = false;
+    let mut in_transaction = false;
 
-let command_queue : Vec<Value> = Vec::new();
+let mut command_queue : Vec<Value> = Vec::new();
 
 
     println!("Starting read loop");
@@ -930,7 +930,7 @@ let command_queue : Vec<Value> = Vec::new();
                     let cmd_name = extract_name(&queued_cmd);
 
                     let response_value = match cmd.name.as_str() {
-                        
+
                     }
                 }
             }
