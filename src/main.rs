@@ -906,6 +906,10 @@ async fn handle_conn(stream: TcpStream, db: Db) {
             let in_transaction = false;
 
             let command_queue : Vec<Value> = Vec::new();
+
+            if !in_transaction {
+                
+            }
          }
                 c => panic!("Error {c}"),
             }
