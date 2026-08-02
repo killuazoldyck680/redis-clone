@@ -918,7 +918,7 @@ let mut command_queue : Vec<Value> = Vec::new();
 
             if in_transaction && cmd_name != "exec" && cmd_name != "discard" {
                 command_queue.push(v);
-                Value::SimpleString("Queued".to_string())
+                Value::SimpleString("QUEUED".to_string())
             } else {
             match cmd_name.as_str() {
                 
