@@ -69,6 +69,11 @@ let mut command_queue : Vec<Value> = Vec::new();
 
         let response = if let Some(v) = value {
             let (command, args) = extract_command(v).unwrap();
+
+            if in_transaction && command.trim() !== "exec" && command.trim() != "discard" {
+                command.queue.push(v);
+                Value::SimpleString("Queued.to_string")
+            } else {
             match command.trim() {
                 "ping" => Value::SimpleString("PONG".to_string()),
                 "echo" => args.first().unwrap().clone(),
@@ -937,6 +942,7 @@ let mut command_queue : Vec<Value> = Vec::new();
          }
                 c => panic!("Error {c}"),
             }
+        }
         } else {
             break;
         };
