@@ -953,6 +953,10 @@ let mut command_queue : Vec<Value> = Vec::new();
                 Value::Array(results)
             }
          }
+
+         "discard" => {
+            
+         }
                 c => execute_command(c, args, &db).await
             }
         }
