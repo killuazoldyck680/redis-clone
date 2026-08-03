@@ -95,6 +95,7 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
                         DbValue {
                             value: DataType::String(val),
                             expires_at,
+                            version: 0
                         },
                     );
 
@@ -176,6 +177,7 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
                                 DbValue {
                                     value: DataType::List(new_elements),
                                     expires_at: None,
+                                    version: 0,
                                 },
                             );
                             list_len
@@ -284,6 +286,7 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
                                 DbValue {
                                     value: DataType::List(new_elements),
                                     expires_at: None,
+                                    version: 0,
                                 },
                             );
 
@@ -609,6 +612,7 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
                                     DbValue {
                                         value: DataType::Stream(vec![entry]),
                                         expires_at: None,
+                                        version: 0,
                                     },
                                 );
                                 Value::BulkString(final_id)
@@ -632,6 +636,7 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
                                         DbValue {
                                             value: DataType::Stream(vec![entry]),
                                             expires_at: None,
+                                            version: 0,
                                         },
                                     );
                                     Value::BulkString(id)
@@ -883,7 +888,7 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
             }
 
             None => {
-                  db_lock.insert(arg, DbValue { value: DataType::String("1".to_string()), expires_at: None });
+                  db_lock.insert(arg, DbValue { value: DataType::String("1".to_string()), expires_at: None, version: 0 });
 
                 Value::Integer(1)
             }
