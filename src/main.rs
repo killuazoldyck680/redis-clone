@@ -21,6 +21,7 @@ enum DataType {
 struct DbValue {
     value: DataType,
     expires_at: Option<Instant>,
+    version: usize,
 }
 
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
