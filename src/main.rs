@@ -955,7 +955,13 @@ let mut command_queue : Vec<Value> = Vec::new();
          }
 
          "discard" => {
-            
+            if !in_transaction {
+                Value::Error("ERR DISCARD without MULTI".to_string())
+            } else {
+                in_transaction = false;
+                command_queue.clear();
+                Value::SimpleString("OK".to_string())
+            }
          }
                 c => execute_command(c, args, &db).await
             }
