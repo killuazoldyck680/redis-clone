@@ -982,7 +982,19 @@ let mut watched_versions : std::collections::HashMap<String, usize>  = std::coll
          }
 
          "watch" => {
-            
+            let db_lock = db.lock().unwrap();
+
+            for key in args {
+              let version = if let Some(entry) = db_lock.get(&key) = {
+                entry.version
+              }  else {
+                   0
+              };
+
+              watched_versions.push(key.clone(), version)
+            }
+
+
          }
                 c => execute_command(c, args, &db).await
             }
