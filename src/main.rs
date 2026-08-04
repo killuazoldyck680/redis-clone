@@ -967,6 +967,15 @@ let mut watched_versions : std::collections::HashMap<String, usize>  = std::coll
 
                     
                 }
+
+                let is_dirty = {
+                    let db_lock = db.lock().unwrap();
+
+                    watched_versions.iter().any(|(key, watched_ver)| {
+                        let current_ver = db_lock.get(key).map(|entry| entry.version).unwrap_or(0);
+                        current_ver != *watched_ver
+                    })
+                };
                 Value::Array(results)
             }
          }
