@@ -925,9 +925,15 @@ let mut command_queue : Vec<Value> = Vec::new();
 
             let cmd_name = command.trim().to_lowercase();
 
-            if in_transaction && cmd_name != "exec" && cmd_name != "discard" && cmd_name != "watch" {
-                command_queue.push(v);
+            if in_transaction && cmd_name != "exec" && cmd_name != "discard"  {
+
+                if cmd_name == "watch" {
+                    Value::Error("ERR WATCH inside MULTI is not allowed".to_string())
+                } else {
+                    command_queue.push(v);
                 Value::SimpleString("QUEUED".to_string())
+                }
+                
             } else {
             match cmd_name.as_str() {
                 
