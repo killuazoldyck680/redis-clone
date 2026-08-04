@@ -896,6 +896,9 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
             
            }
         }
+        "watch" => {
+            Value::SimpleString("OK".to_string())
+        }
 
         _ => Value::Error("ERR unknown command".to_string())
     }
