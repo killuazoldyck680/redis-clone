@@ -90,12 +90,14 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
 
                     let mut db_lock = db.lock().unwrap();
 
+                    let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
+
                     db_lock.insert(
                         key,
                         DbValue {
                             value: DataType::String(val),
                             expires_at,
-                            version: 0
+                            version: new_version,
                         },
                     );
 
@@ -171,13 +173,14 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
 
                         None => {
                             let list_len = new_elements.len();
+                            let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
 
                             db_lock.insert(
                                 key,
                                 DbValue {
                                     value: DataType::List(new_elements),
                                     expires_at: None,
-                                    version: 0,
+                                    version: new_version,
                                 },
                             );
                             list_len
@@ -281,6 +284,9 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
 
                         None => {
                             let list_len = new_elements.len();
+
+                            let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
+
                             db_lock.insert(
                                 key,
                                 DbValue {
@@ -606,13 +612,13 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
                                     id: final_id.clone(),
                                     fields,
                                 };
-
+                                let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
                                 db_lock.insert(
                                     key,
                                     DbValue {
                                         value: DataType::Stream(vec![entry]),
                                         expires_at: None,
-                                        version: 0,
+                                        version: new_version,
                                     },
                                 );
                                 Value::BulkString(final_id)
@@ -630,13 +636,13 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
                                         id: id.clone(),
                                         fields,
                                     };
-
+                                    let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
                                     db_lock.insert(
                                         key,
                                         DbValue {
                                             value: DataType::Stream(vec![entry]),
                                             expires_at: None,
-                                            version: 0,
+                                            version: new_version,
                                         },
                                     );
                                     Value::BulkString(id)
@@ -909,141 +915,129 @@ async fn handle_conn(stream: TcpStream, db: Db) {
     let mut handler = resp::RespHandler::new(stream);
 
     let mut in_transaction = false;
-
-let mut command_queue : Vec<Value> = Vec::new();
-
-let mut watched_versions : std::collections::HashMap<String, usize>  = std::collections::HashMap::new();
-
+    let mut command_queue: Vec<Value> = Vec::new();
+    let mut watched_versions: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
     println!("Starting read loop");
 
     loop {
-        let value = handler.read_value().await.unwrap();
+        let value = match handler.read_value().await {
+            Ok(Some(v)) => v,
+            _ => break, // Connection closed or socket read error
+        };
 
         println!("Got value {:?}", value);
 
-        let response = if let Some(v) = value {
-            let (command, args) = extract_command(v.clone()).unwrap();
+        let (command, args) = match extract_command(value.clone()) {
+            Ok(cmd_tuple) => cmd_tuple,
+            Err(_) => {
+                let _ = handler.write_value(Value::Error("ERR bad protocol".to_string())).await;
+                continue;
+            }
+        };
 
-            let cmd_name = command.trim().to_lowercase();
+        let cmd_name = command.trim().to_lowercase();
 
-            if in_transaction && cmd_name != "exec" && cmd_name != "discard"  {
-
-                if cmd_name == "watch" {
-                    Value::Error("ERR WATCH inside MULTI is not allowed".to_string())
-                } else {
-                    command_queue.push(v);
+        let response = if in_transaction && cmd_name != "exec" && cmd_name != "discard" {
+            if cmd_name == "watch" {
+                Value::Error("ERR WATCH inside MULTI is not allowed".to_string())
+            } else {
+                command_queue.push(value);
                 Value::SimpleString("QUEUED".to_string())
-                }
-                
-            } else {
+            }
+        } else {
             match cmd_name.as_str() {
-                
-         
-         
-         "multi" => {
-            
-            in_transaction = true;
+                "multi" => {
+                    if in_transaction {
+                        Value::Error("ERR MULTI calls cannot be nested".to_string())
+                    } else {
+                        in_transaction = true;
+                        command_queue.clear();
+                        Value::SimpleString("OK".to_string())
+                    }
+                }
 
-            command_queue.clear();
+                "exec" => {
+                    if !in_transaction {
+                        Value::Error("ERR EXEC without MULTI".to_string())
+                    } else {
+                        in_transaction = false;
 
-            Value::SimpleString("OK".to_string())
-         }
+                        let is_dirty = {
+                            let db_lock = db.lock().unwrap();
 
-         "exec" => {
-            if !in_transaction {
-                Value::Error("ERR EXEC without MULTI".to_string())
-            } else {
-                in_transaction = false;
+                            watched_versions.iter().any(|(key, watched_ver)| {
+                                // If key is deleted/missing, treat present state as distinct 
+                                // from a valid positive version number to prevent false matches.
+                                match db_lock.get(key) {
+                                    Some(entry) => entry.version != *watched_ver,
+                                    None => *watched_ver != 0,
+                                }
+                            })
+                        };
 
-                let is_dirty = {
+                        // WATCH context is flushed upon EXEC regardless of outcome
+                        watched_versions.clear();
+
+                        if is_dirty {
+                            command_queue.clear();
+                            Value::NullArray
+                        } else {
+                            let mut results = Vec::new();
+                            for queued_v in command_queue.drain(..) {
+                                let (q_cmd, q_args) = extract_command(queued_v).unwrap();
+                                let res = execute_command(&q_cmd, q_args, &db).await;
+                                results.push(res);
+                            }
+                            Value::Array(results)
+                        }
+                    }
+                }
+
+                "discard" => {
+                    if !in_transaction {
+                        Value::Error("ERR DISCARD without MULTI".to_string())
+                    } else {
+                        in_transaction = false;
+                        command_queue.clear();
+                        watched_versions.clear(); // Reset watched keys on discard
+                        Value::SimpleString("OK".to_string())
+                    }
+                }
+
+                "watch" => {
                     let db_lock = db.lock().unwrap();
 
-                    watched_versions.iter().any(|(key, watched_ver)| {
-                        let current_ver = db_lock.get(key).map(|entry| entry.version).unwrap_or(0);
-                        current_ver != *watched_ver
-                    })
-                };
+                    for arg in args {
+                        // Safely extract string values without assuming exact RESP variant
+                        if let Ok(key_str) = unpack_bulk_str(arg) {
+                            let version = db_lock
+                                .get(&key_str)
+                                .map(|entry| entry.version)
+                                .unwrap_or(0);
 
-                watched_versions.clear();
-            
-
-
-                
-
-                
-
-                
-
-                if is_dirty {
-                    command_queue.clear();
-                     Value::NullArray
-                } else {
-                    let mut results = Vec::new();
-                    for queued_v in command_queue.drain(..) {
-                    let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-
-                    let res = execute_command(&q_cmd, q_args, &db).await;
-
-                    results.push(res);
-
-                    
-                }
-                Value::Array(results)
-
+                            watched_versions.insert(key_str, version);
+                        }
+                    }
+                    Value::SimpleString("OK".to_string())
                 }
 
-                
-                
-                
-            }
-         }
-
-         "discard" => {
-            if !in_transaction {
-                Value::Error("ERR DISCARD without MULTI".to_string())
-            } else {
-                in_transaction = false;
-                command_queue.clear();
-                Value::SimpleString("OK".to_string())
-            }
-         }
-
-         "watch" => {
-            let db_lock = db.lock().unwrap();
-
-            for arg in args {
-                if let Value::BulkString(key_Str) = arg {
-                    let version = if let Some(entry) = db_lock.get(&key_Str)  {
-                entry.version
-              }  else {
-                   0
-              };
-
-              watched_versions.insert(key_Str.clone(), version);
-            }
-        }
-
-            Value::SimpleString("OK".to_string())
-
-
+                "unwatch" => {
+                    watched_versions.clear();
+                    Value::SimpleString("OK".to_string())
                 }
 
-              
-         
-                c => execute_command(c, args, &db).await
+                c => execute_command(c, args, &db).await,
             }
-        }
-        } else {
-            break;
         };
 
         println!("Sending value {:?}", response);
 
-        handler.write_value(response).await.unwrap();
+        if handler.write_value(response).await.is_err() {
+            break;
+        }
     }
 }
-
 fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
     match value {
         Value::Array(a) => {
