@@ -912,6 +912,8 @@ async fn handle_conn(stream: TcpStream, db: Db) {
 
 let mut command_queue : Vec<Value> = Vec::new();
 
+let mut watched_versions : std::collections::HashMap<String, usize>  = std::collections::HashMap::new();
+
 
     println!("Starting read loop");
 
@@ -977,6 +979,10 @@ let mut command_queue : Vec<Value> = Vec::new();
                 command_queue.clear();
                 Value::SimpleString("OK".to_string())
             }
+         }
+
+         "watch" => {
+            
          }
                 c => execute_command(c, args, &db).await
             }
