@@ -925,7 +925,7 @@ let mut command_queue : Vec<Value> = Vec::new();
 
             let cmd_name = command.trim().to_lowercase();
 
-            if in_transaction && cmd_name != "exec" && cmd_name != "discard" {
+            if in_transaction && cmd_name != "exec" && cmd_name != "discard" && cmd_name != "watch" {
                 command_queue.push(v);
                 Value::SimpleString("QUEUED".to_string())
             } else {
