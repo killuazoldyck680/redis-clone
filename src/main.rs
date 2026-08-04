@@ -984,18 +984,25 @@ let mut watched_versions : std::collections::HashMap<String, usize>  = std::coll
          "watch" => {
             let db_lock = db.lock().unwrap();
 
-            for key in args {
-              let version = if let Some(entry) = db_lock.get(&key) = {
+            for arg in args {
+                if let Value::BulkString(key_Str) = arg {
+                    let version = if let Some(entry) = db_lock.get(&key_Str)  {
                 entry.version
               }  else {
                    0
               };
 
-              watched_versions.push(key.clone(), version)
+              watched_versions.insert(key_Str.clone(), version);
             }
+        }
+
+            Value::SimpleString("OK".to_string())
 
 
-         }
+                }
+
+              
+         
                 c => execute_command(c, args, &db).await
             }
         }
