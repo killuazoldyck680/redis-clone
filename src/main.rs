@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{env, usize, vec};
+use std::{env, result, usize, vec};
 use tokio::net::{TcpListener, TcpStream};
 
 use anyhow::Result;
@@ -955,18 +955,6 @@ let mut watched_versions : std::collections::HashMap<String, usize>  = std::coll
                 Value::Error("ERR EXEC without MULTI".to_string())
             } else {
                 in_transaction = false;
-                let mut results = Vec::new();
-
-
-                for queued_v in command_queue.drain(..) {
-                    let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-
-                    let res = execute_command(&q_cmd, q_args, &db).await;
-
-                    results.push(res);
-
-                    
-                }
 
                 let is_dirty = {
                     let db_lock = db.lock().unwrap();
@@ -976,7 +964,38 @@ let mut watched_versions : std::collections::HashMap<String, usize>  = std::coll
                         current_ver != *watched_ver
                     })
                 };
+
+                watched_versions.clear();
+            
+
+
+                
+
+                
+
+                
+
+                if is_dirty {
+                    command_queue.clear();
+                     Value::NullArray
+                } else {
+                    let mut results = Vec::new();
+                    for queued_v in command_queue.drain(..) {
+                    let (q_cmd, q_args) = extract_command(queued_v).unwrap();
+
+                    let res = execute_command(&q_cmd, q_args, &db).await;
+
+                    results.push(res);
+
+                    
+                }
                 Value::Array(results)
+
+                }
+
+                
+                
+                
             }
          }
 
