@@ -29,7 +29,7 @@ type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 #[tokio::main]
 async fn main() {
 
-    let mut port = "127.0.0.1:6379".to_string();
+    let mut port = "6379".to_string();
 
     let args: Vec<String> = std::env::args().collect();
 
@@ -925,13 +925,15 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
 
         "info" => {
            if let Some(arg) = args.get(1) {
-            let rep_string = unpack_bulk_str(arg).to_lowercase();
+            let rep_string = unpack_bulk_str(arg.clone()).unwrap().to_lowercase();
             
             if rep_string == "replication" {
-                "$25\r\n# Replication\r\nrole:master\r\n"
-            }
+                Value::BulkString("# Replication\r\nrole:master".to_string())
+            } else {
+            Value::BulkString("# Replication\r\nrole:master\r\n".to_string())
+           }
            } else {
-
+            Value::BulkString("# Replication\r\nrole:master\r\n".to_string())
            }
 
            
