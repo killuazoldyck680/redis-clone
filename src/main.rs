@@ -924,11 +924,17 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
         }
 
         "info" => {
-            let arg = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-            if arg == "replication" {
-                
+           if let Some(arg) = args.get(1) {
+            let rep_string = unpack_bulk_str(arg).to_lowercase();
+            
+            if rep_string == "replication" {
+                "$25\r\n# Replication\r\nrole:master\r\n"
             }
+           } else {
+
+           }
+
+           
         }
 
         _ => Value::Error("ERR unknown command".to_string())
