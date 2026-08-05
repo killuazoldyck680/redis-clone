@@ -923,6 +923,10 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
             Value::SimpleString("OK".to_string())
         }
 
+        "info" => {
+            
+        }
+
         _ => Value::Error("ERR unknown command".to_string())
     }
 }
