@@ -28,6 +28,9 @@ type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
 #[tokio::main]
 async fn main() {
+
+    let default_port = 127.0.0.1:6379
+
     let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
 
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
