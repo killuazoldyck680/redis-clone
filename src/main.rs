@@ -29,9 +29,23 @@ type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 #[tokio::main]
 async fn main() {
 
-    let default_port = "127.0.0.1:6379".to_string();
+    let mut port = "127.0.0.1:6379".to_string();
 
-    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
+    let args: Vec<String> = std::env::args().collect();
+
+    let mut i = 0;
+
+    while i < args.len() {
+        if args[i] == "--port" && i + 1 < args.len() {
+            port = args[i + 1].clone();
+            break ;
+        }
+        i += 1 ;
+    }
+
+    let addr = format!("127.0.0.1:{port}");
+
+    let listener = TcpListener::bind(&addr).await.unwrap();
 
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
