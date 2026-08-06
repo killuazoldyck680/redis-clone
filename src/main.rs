@@ -33,7 +33,7 @@ async fn main() {
 
     let args: Vec<String> = std::env::args().collect();
 
-    let replicaof = std::env::args().collect();
+    let is_replica = false;
 
 
     let mut i = 0;
@@ -46,7 +46,7 @@ async fn main() {
         i += 1 ;
 
         if replicaof {
-            
+
         }
     }
 
