@@ -33,6 +33,7 @@ async fn main() {
 
     let args: Vec<String> = std::env::args().collect();
 
+    let replica_of = std::env::args().collect();
     let is_replica = false;
 
 
@@ -41,13 +42,16 @@ async fn main() {
     while i < args.len() {
         if args[i] == "--port" && i + 1 < args.len() {
             port = args[i + 1].clone();
-            break ;
+            
         }
         i += 1 ;
 
-        if replicaof {
+        if args[i] == "--replica_of" && i + 1 < args.len() {
+            is_replica = true
 
         }
+
+        i += 2
     }
 
     let addr = format!("127.0.0.1:{port}");
