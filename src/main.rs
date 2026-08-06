@@ -33,6 +33,9 @@ async fn main() {
 
     let args: Vec<String> = std::env::args().collect();
 
+    let replicaof = std::env::args().collect();
+
+
     let mut i = 0;
 
     while i < args.len() {
@@ -41,6 +44,10 @@ async fn main() {
             break ;
         }
         i += 1 ;
+
+        if replicaof {
+            
+        }
     }
 
     let addr = format!("127.0.0.1:{port}");
