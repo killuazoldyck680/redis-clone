@@ -34,7 +34,7 @@ async fn main() {
     let args: Vec<String> = std::env::args().collect();
 
    
-    let is_replica = false;
+    let mut is_replica = false;
 
 
     let mut i = 1;
@@ -84,7 +84,7 @@ async fn main() {
     }
 }
 
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool) -> Value {
     match command.to_lowercase().as_str() {
         "ping" => Value::SimpleString("PONG".to_string()),
                 "echo" => args.first().unwrap().clone(),
@@ -942,23 +942,13 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db) -> Value {
             let role = if is_replica {"slave"} else {"master"};
 
 
-           if let Some(arg) = args.get(1) {
-            let rep_string = unpack_bulk_str(arg.clone()).unwrap().to_lowercase();
-
+           
             
-            Value::BulkString("# Replication\r\nrole:{role}\r\n")
-            
-            if rep_string == "replication" {
-                Value::BulkString("# Replication\r\nrole:master".to_string())
-            } else if is_replica {
-            Value::BulkString("# Replication\r\nrole:slave\r\n".to_string())
-           }
-           } else {
-            Value::BulkString("# Replication\r\nrole:master\r\n".to_string())
-           }
+            Value::BulkString(format!("# Replication\r\nrole:{role}\r\n"))
+}
 
            
-        }
+        
 
         _ => Value::Error("ERR unknown command".to_string())
     }
@@ -1040,7 +1030,7 @@ async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool) {
                             let mut results = Vec::new();
                             for queued_v in command_queue.drain(..) {
                                 let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-                                let res = execute_command(&q_cmd, q_args, &db).await;
+                                let res = execute_command(&q_cmd, q_args, &db, is_replica).await;
                                 results.push(res);
                             }
                             Value::Array(results)
@@ -1081,7 +1071,7 @@ async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool) {
                     Value::SimpleString("OK".to_string())
                 }
 
-                c => execute_command(c, args, &db).await,
+                c => execute_command(c, args, &db, is_replica).await,
             }
         };
 
