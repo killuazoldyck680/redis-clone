@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::env::args;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -32,6 +33,12 @@ async fn main() {
     let mut port = "6379".to_string();
 
     let args: Vec<String> = std::env::args().collect();
+
+    let master_host = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+    let master_port = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
+
+    
 
    
     let mut is_replica = false;
