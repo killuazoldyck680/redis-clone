@@ -50,7 +50,15 @@ async fn main() {
             i += 2
             
         } else if args[i] == "--replicaof" && i + 1 < args.len() {
+            let mut replica_info: Option<String, String> = None;
+
             is_replica = true;
+
+            let parts: Vec<&str> = args[i + 1].split_whitespace().collect();
+
+            if parts.len() == 2 {
+                replica_info = Some((parts[0].to_string(), parts[1].to_string()));
+            }
             i += 2;
         } else {
             i += 1;
@@ -67,6 +75,8 @@ async fn main() {
     let listener = TcpListener::bind(&addr).await.unwrap();
 
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
+
+    
 
     loop {
         let stream = listener.accept().await;
