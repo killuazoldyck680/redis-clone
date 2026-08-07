@@ -34,10 +34,7 @@ async fn main() {
 
     let args: Vec<String> = std::env::args().collect();
 
-    let master_host = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-    let master_port = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
-
+    
     
 
    
