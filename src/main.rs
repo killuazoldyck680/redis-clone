@@ -4,7 +4,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, result, usize, vec};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+
 
 use anyhow::Result;
 use resp::Value;
@@ -42,6 +44,8 @@ async fn main() {
 
 
     let mut i = 1;
+    let mut replica_info: Option<(String, String)> = None;
+
 
     while i < args.len() {
         if args[i] == "--port" && i + 1 < args.len() {
@@ -50,8 +54,7 @@ async fn main() {
             i += 2
             
         } else if args[i] == "--replicaof" && i + 1 < args.len() {
-            let mut replica_info: Option<String, String> = None;
-
+            
             is_replica = true;
 
             let parts: Vec<&str> = args[i + 1].split_whitespace().collect();
@@ -76,7 +79,18 @@ async fn main() {
 
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
-    
+    if let Some((master_host, master_port)) = replica_info {
+    let master_addr = format!("{master_host}:{master_port}");
+    tokio::spawn(async move {
+        if let Ok(mut stream) = TcpStream::connect(&master_addr).await {
+            let ping_cmd = "*1\r\n$4\r\nPING\r\n";
+            let _ = stream.write_all(ping_cmd.as_bytes()).await;
+            
+            let mut buf = [0u8; 512];
+            let _ = stream.read(&mut buf).await;
+        }
+    });
+}
 
     loop {
         let stream = listener.accept().await;
