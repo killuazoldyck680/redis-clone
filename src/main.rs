@@ -36,14 +36,7 @@ async fn main() {
 
     let args: Vec<String> = std::env::args().collect();
 
-    let closure = move || {
-        let listening_payload = format!("Listening on port: {}", port);
-        println!("{}", listening_payload)
-
-    };
-     
-    closure(); 
-
+   
     
     
 
@@ -89,13 +82,31 @@ async fn main() {
 
     if let Some((master_host, master_port)) = replica_info {
     let master_addr = format!("{master_host}:{master_port}");
-    tokio::spawn(async move {
+
+    let port_clone = port.clone();
+    tokio::spawn(async move { 
         if let Ok(mut stream) = TcpStream::connect(&master_addr).await {
             let ping_cmd = "*1\r\n$4\r\nPING\r\n";
             let _ = stream.write_all(ping_cmd.as_bytes()).await;
             
+
             let mut buf = [0u8; 512];
             let _ = stream.read(&mut buf).await;
+
+            let replconf_port = format!("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n", port_clone.len(), port_clone);
+
+            let _ = stream.write_all(replconf_port.as_bytes()).await;
+
+            let _  = stream.read(&mut buf).await;
+
+            let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
+
+            let _ = stream.write_all(replconf_capa.as_bytes()).await;
+
+            let _ = stream.read(&mut buf).await;
+
+
+
         }
     });
 }
