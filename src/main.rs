@@ -980,7 +980,7 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
 }
 
     "replconf" => {
-        
+        Value::SimpleString("OK".to_string())
     }
 
            
