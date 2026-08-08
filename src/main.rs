@@ -979,6 +979,10 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
             Value::BulkString(format!("# Replication\r\nrole:{role}\r\nmaster_replid:{master_replid}\r\nmaster_repl_offset:{master_repl_offset}\r\n"))
 }
 
+    "replconf" => {
+        
+    }
+
            
         
 
