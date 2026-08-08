@@ -82,8 +82,9 @@ impl RespHandler {
     }
 
     pub async fn write_value(&mut self, value: Value) -> Result<()> {
-        self.stream.write(value.serialize().as_bytes()).await?;
+        self.stream.write_all(value.serialize().as_bytes()).await?;
 
+        self.stream.flush().await;
         Ok(())
     }
 }

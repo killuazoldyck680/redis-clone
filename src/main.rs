@@ -88,6 +88,8 @@ async fn main() {
         if let Ok(mut stream) = TcpStream::connect(&master_addr).await {
             let ping_cmd = "*1\r\n$4\r\nPING\r\n";
             let _ = stream.write_all(ping_cmd.as_bytes()).await;
+
+            let _  = stream.flush().await;
             
 
             let mut buf = [0u8; 512];
@@ -97,17 +99,23 @@ async fn main() {
 
             let _ = stream.write_all(replconf_port.as_bytes()).await;
 
+            let _  = stream.flush().await;
+
             let _  = stream.read(&mut buf).await;
 
             let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
 
             let _ = stream.write_all(replconf_capa.as_bytes()).await;
 
+            let _  = stream.flush().await;
+
             let _ = stream.read(&mut buf).await;
 
             let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
 
             let _ = stream.write_all(psync.as_bytes()).await;
+
+            let _  = stream.flush().await;
 
             let _ = stream.read(&mut buf).await;
 
@@ -1005,6 +1013,8 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
 }
 
     "replconf" => {
+
+
         Value::SimpleString("OK".to_string())
     }
 
