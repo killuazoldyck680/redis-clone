@@ -36,6 +36,14 @@ async fn main() {
 
     let args: Vec<String> = std::env::args().collect();
 
+    let closure = move || {
+        let listening_payload = format!("Listening on port: {}", port);
+        println!("{}", listening_payload)
+
+    };
+     
+    closure(); 
+
     
     
 
