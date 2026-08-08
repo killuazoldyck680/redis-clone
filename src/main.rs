@@ -184,8 +184,11 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
                             }
                         }
                     }
-
+                    println!("3. Entering SET execution...");
+println!("4. Waiting for DB lock...");
                     let mut db_lock = db.lock().unwrap();
+
+                    println!("5. DB lock acquired!");
 
                     let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
 
@@ -1018,6 +1021,8 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
         Value::SimpleString("OK".to_string())
     }
 
+    "psync" => Value::SimpleString(format!("FULLRESYNC {} {}", master_replid, master_repl_offset)),
+
            
         
 
@@ -1036,10 +1041,12 @@ async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool) {
     println!("Starting read loop");
 
     loop {
+        println!("1. Reading value from socket...");
         let value = match handler.read_value().await {
             Ok(Some(v)) => v,
             _ => break, // Connection closed or socket read error
         };
+        println!("2. Value read successfully: {:?}", value);
 
         println!("Got value {:?}", value);
 

@@ -55,36 +55,38 @@ impl RespHandler {
         }
     }
 
-    pub async fn read_value(&mut self) -> Result<Option<Value>> {
-        loop {
-            // 1. Try parsing from the buffer first if it has data
-            if !self.buffer.is_empty() {
-                if let Ok((v, bytes_consumed)) = parse_message(self.buffer.clone()) {
-                    let _ = self.buffer.split_to(bytes_consumed);
+pub async fn read_value(&mut self) -> Result<Option<Value>> {
+    loop {
+        if !self.buffer.is_empty() {
+            println!("--> Buffer has {} bytes. Parsing...", self.buffer.len());
+            match parse_message(self.buffer.clone()) {
+                Ok((v, bytes_consumed)) => {
+                    self.buffer.split_to(bytes_consumed);
                     return Ok(Some(v));
                 }
-            }
-
-            // 2. Read new incoming data from the socket stream
-            let bytes_read = self.stream.read_buf(&mut self.buffer).await?;
-
-            // 3. Handle socket closures smoothly
-            if bytes_read == 0 {
-                if self.buffer.is_empty() {
-                    return Ok(None);
-                } else {
-                    return Err(anyhow::anyhow!(
-                        "Connection reset by peer while parsing a partial frame"
-                    ));
+                Err(e) => {
+                    println!("--> Parser needed more data or failed: {:?}", e);
                 }
             }
         }
+
+        println!("--> Calling read_buf to wait for bytes...");
+        let bytes_read = self.stream.read_buf(&mut self.buffer).await?;
+        println!("--> Read {} bytes from socket", bytes_read);
+
+        if bytes_read == 0 {
+            if self.buffer.is_empty() {
+                return Ok(None);
+            } else {
+                return Err(anyhow::anyhow!("Connection closed prematurely"));
+            }
+        }
     }
+}
 
     pub async fn write_value(&mut self, value: Value) -> Result<()> {
         self.stream.write_all(value.serialize().as_bytes()).await?;
-
-        self.stream.flush().await;
+        self.stream.flush().await?; // <-- Added missing ? here
         Ok(())
     }
 }
