@@ -105,6 +105,12 @@ async fn main() {
 
             let _ = stream.read(&mut buf).await;
 
+            let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
+
+            let _ = stream.write_all(psync.as_bytes()).await;
+
+            let _ = stream.read(&mut buf).await;
+
 
 
         }
