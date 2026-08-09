@@ -14,6 +14,7 @@ pub enum Value {
     Integer(i64),
     NullArray,
     Error(String),
+    RdbFile(Vec<u8>),
 }
 
 pub struct RespHandler {
@@ -26,22 +27,28 @@ pub struct StreamEntry {
     pub fields: Vec<(String, String)>,
 }
 impl Value {
-    pub fn serialize(self) -> String {
+    pub fn serialize(self) -> Vec<u8> {
         match self {
-            Value::SimpleString(s) => format!("+{}\r\n", s),
-            Value::BulkString(s) => format!("${}\r\n{}\r\n", s.len(), s),
-            Value::NullBulkString => "$-1\r\n".to_string(),
-            Value::Integer(i) => format!(":{}\r\n", i),
-            Value::Error(e) => format!("-{}\r\n", e),
-            Value::NullArray => "*-1\r\n".to_string(),
+            Value::SimpleString(s) => format!("+{}\r\n", s).into_bytes(),
+            Value::BulkString(s) => format!("${}\r\n{}\r\n", s.len(), s).into_bytes(),
+            Value::NullBulkString => "$-1\r\n".to_string().into_bytes(),
+            Value::Integer(i) => format!(":{}\r\n", i).into_bytes(),
+            Value::Error(e) => format!("-{}\r\n", e).into_bytes(),
+            Value::NullArray => "*-1\r\n".to_string().into_bytes(),
             Value::Array(items) => {
-                let mut result = format!("*{}\r\n", items.len());
+                let mut result = format!("*{}\r\n", items.len()).into_bytes();
 
                 for item in items {
-                    result.push_str(&item.serialize());
+                    result.extend(item.serialize());
                 }
 
                 result
+            },
+            Value::RdbFile(bytes) => {
+               let mut result = format!("${}\r\n", bytes.len()).into_bytes();
+               result.extend(bytes);
+
+               result
             }
         }
     }
@@ -85,7 +92,7 @@ pub async fn read_value(&mut self) -> Result<Option<Value>> {
 }
 
     pub async fn write_value(&mut self, value: Value) -> Result<()> {
-        self.stream.write_all(value.serialize().as_bytes()).await?;
+        self.stream.write_all(&value.serialize()).await?;
         self.stream.flush().await?; // <-- Added missing ? here
         Ok(())
     }
