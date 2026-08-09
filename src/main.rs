@@ -1023,6 +1023,8 @@ println!("4. Waiting for DB lock...");
 
     "psync" => {
     let hex_str = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656d12c0101200fa0c616f662d626173656c6f6164696e67c000fe00fb01000003666f6f03626172ff89506c7e0c9202d7";
+
+    
     
     Value::SimpleString(format!("FULLRESYNC {} {}", master_replid, master_repl_offset)),
 
