@@ -15,6 +15,7 @@ pub enum Value {
     NullArray,
     Error(String),
     RdbFile(Vec<u8>),
+    Multiple(Vec<Value>),
 }
 
 pub struct RespHandler {
@@ -49,7 +50,18 @@ impl Value {
                result.extend(bytes);
 
                result
+            },
+            Value::Multiple(items) => {
+                let mut result = Vec::new();
+
+                for item in items {
+                    result.extend(item.serialize());
+                }
+
+                result
+
             }
+            
         }
     }
 }

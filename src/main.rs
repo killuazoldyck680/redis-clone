@@ -1026,8 +1026,7 @@ println!("4. Waiting for DB lock...");
 
     let bytes = hex::decode(hex_str)?;
     
-    Value::SimpleString(format!("FULLRESYNC {} {}", master_replid, master_repl_offset)),
-
+    Value::Multiple(vec![Value::SimpleString(format!("FULLRESYNC {} {}", master_replid, master_repl_offset)), Value::RdbFile(bytes)])
     }
 
            
