@@ -81,6 +81,14 @@ async fn main() {
 
     let listener = TcpListener::bind(&addr).await.unwrap();
 
+    let replicas : ReplicaList = Arc::new(Mutex::new(Vec::new()));
+
+    loop {
+        let (stream, _) = listener.accept().await?;
+
+        let replica_clone = Arc::clone(&replicas)
+    }
+
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
     if let Some((master_host, master_port)) = replica_info {
