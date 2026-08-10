@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::env::args;
-use std::sync::{Arc, Mutex};
+use std::fmt::format;
+use std::sync::{Arc,Mutex};
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, result, usize, vec};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::OwnedWriteHalf;
+
 
 
 use anyhow::Result;
@@ -30,7 +32,7 @@ struct DbValue {
 
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
-type ReplicaList = Arc<Mutex<Vec<Arc<Mutex<TcpStream>>>>>;
+type ReplicaList = Arc<std::sync::Mutex<Vec<Arc<std::sync::Mutex<TcpStream>>>>>;
 
 #[tokio::main]
 async fn main() {
@@ -160,7 +162,7 @@ async fn main() {
     }
 }
 
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<Mutex<TcpStream>>,) -> Value {
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>,) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
     let master_repl_offset = 0;
@@ -169,55 +171,81 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
         "ping" => Value::SimpleString("PONG".to_string()),
                 "echo" => args.first().unwrap().clone(),
 
-                "set" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-                    let val = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+"set" => {
+    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+    let val = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-                    let mut expires_at = None;
-                    if let (Some(opt), Some(expiry_val)) = (args.get(2), args.get(3)) {
-                        let raw_opt = unpack_bulk_str(opt.clone()).unwrap();
-                        // Strip any hidden protocol symbols (\r or \n) and trailing spaces
-                        let clean_opt = raw_opt
-                            .trim_matches(|c: char| c == '\r' || c == '\n' || c.is_whitespace())
-                            .to_lowercase();
+    let mut expires_at = None;
+    if let (Some(opt), Some(expiry_val)) = (args.get(2), args.get(3)) {
+        let raw_opt = unpack_bulk_str(opt.clone()).unwrap();
+        let clean_opt = raw_opt
+            .trim_matches(|c: char| c == '\r' || c == '\n' || c.is_whitespace())
+            .to_lowercase();
 
-                        if clean_opt == "px" {
-                            let raw_ms = unpack_bulk_str(expiry_val.clone()).unwrap();
-                            let clean_ms = raw_ms.trim_matches(|c: char| {
-                                c == '\r' || c == '\n' || c.is_whitespace()
-                            });
+        if clean_opt == "px" {
+            let raw_ms = unpack_bulk_str(expiry_val.clone()).unwrap();
+            let clean_ms = raw_ms.trim_matches(|c: char| {
+                c == '\r' || c == '\n' || c.is_whitespace()
+            });
 
-                            if let Ok(ms) = clean_ms.parse::<u64>() {
-                                let now = Instant::now();
-                                let target_expiry = now + std::time::Duration::from_millis(ms);
+            if let Ok(ms) = clean_ms.parse::<u64>() {
+                let now = Instant::now();
+                let target_expiry = now + std::time::Duration::from_millis(ms);
 
-                                println!("--> [DEBUG SET] Current Instant: {:?}", now);
-                                println!("--> [DEBUG SET] Adding Delay: {} ms", ms);
-                                println!("--> [DEBUG SET] Will Expire At: {:?}", target_expiry);
+                println!("--> [DEBUG SET] Current Instant: {:?}", now);
+                println!("--> [DEBUG SET] Adding Delay: {} ms", ms);
+                println!("--> [DEBUG SET] Will Expire At: {:?}", target_expiry);
 
-                                expires_at = Some(target_expiry);
-                            }
-                        }
-                    }
-                    println!("3. Entering SET execution...");
-println!("4. Waiting for DB lock...");
-                    let mut db_lock = db.lock().unwrap();
+                expires_at = Some(target_expiry);
+            }
+        }
+    }
 
-                    println!("5. DB lock acquired!");
+    println!("3. Entering SET execution...");
+    println!("4. Waiting for DB lock...");
+    let mut db_lock = db.lock().unwrap();
 
-                    let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
+    println!("5. DB lock acquired!");
 
-                    db_lock.insert(
-                        key,
-                        DbValue {
-                            value: DataType::String(val),
-                            expires_at,
-                            version: new_version,
-                        },
-                    );
+    let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
 
-                    Value::SimpleString("OK".to_string())
-                }
+    db_lock.insert(
+        key.clone(),
+        DbValue {
+            value: DataType::String(val.clone()),
+            expires_at,
+            version: new_version,
+        },
+    );
+
+    // Drop DB lock before async operations
+    drop(db_lock);
+
+    // --- PROPAGATION TO REPLICAS ---
+    let cmd_bytes = format!(
+        "*{}\r\n${}\r\nSET\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
+        3,
+        3,
+        key.len(),
+        key,
+        val.len(),
+        val
+    );
+
+    let replicas_guard = replicas.lock().unwrap();
+    for replica in replicas_guard.iter() {
+        // If write_half uses tokio::sync::Mutex:
+        let mut writer = replica.lock().await; 
+        
+        // If write_half uses std::sync::Mutex, scope it so .unwrap() works:
+        // let mut writer = replica.lock().unwrap();
+        
+        let _ = writer.write_all(cmd_bytes.as_bytes()).await;
+        let _ = writer.flush().await;
+    }
+
+    Value::SimpleString("OK".to_string())
+}
 
                 "get" => {
                     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
@@ -1036,27 +1064,37 @@ println!("4. Waiting for DB lock...");
         Value::SimpleString("OK".to_string())
     }
 
-    "psync" => {
+ "psync" => {
+    replicas.lock().unwrap().push(write_half.clone());
+
+    let fullresync = format!("+FULLRESYNC {} {}\r\n", master_replid, master_repl_offset);
     let hex_str = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656d12c0101200fa0c616f662d626173656c6f6164696e67c000fe00fb0000ff89506c7e0c9202d7";
-
     let bytes = hex::decode(hex_str).unwrap();
-    
-    Value::Multiple(vec![Value::SimpleString(format!("FULLRESYNC {} {}", master_replid, master_repl_offset)), Value::RdbFile(bytes)])
+    let rdb_header = format!("${}\r\n", bytes.len());
+
+    // Combine into a single byte buffer
+    let mut payload = Vec::new();
+    payload.extend_from_slice(fullresync.as_bytes());
+    payload.extend_from_slice(rdb_header.as_bytes());
+    payload.extend_from_slice(&bytes);
+
+    // Limit the scope of MutexGuard so it drops BEFORE any .await
+    {
+        let mut writer = write_half.lock().unwrap();
+        // Option A: Use std synchronous write if TcpStream/Writer supports it,
+        // OR Option B: Use tokio::sync::Mutex instead for write_half.
     }
 
-           
-        
-
-        _ => Value::Error("ERR unknown command".to_string())
-    }
+    Value::NullArray
 }
+    _ => Value::Error("ERR unknown command".to_string())
+}
+}
+  
 
 
 async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList) {
-    let (read_half, write_half) = stream.into_split();
-
-    let write_half = Arc::new(Mutex::new(write_half));
-
+    
    let std_stream = stream.into_std().expect("failed to convert to std stream");
 let std_clone = std_stream.try_clone().expect("failed to clone std stream");
 
