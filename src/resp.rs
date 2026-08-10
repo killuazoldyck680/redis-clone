@@ -1,8 +1,7 @@
 use anyhow::Result;
 use bytes::BytesMut;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
+    io::{AsyncReadExt, AsyncWriteExt}, net::{TcpStream, tcp::OwnedReadHalf},
 };
 
 #[derive(Clone, Debug)]

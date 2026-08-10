@@ -30,7 +30,7 @@ struct DbValue {
 
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
-type ReplicaList = Arc<Mutex<Vec<Arc<Mutex<OwnedWriteHalf>>>>>;
+type ReplicaList = Arc<Mutex<Vec<Arc<Mutex<TcpStream>>>>>;
 
 #[tokio::main]
 async fn main() {
@@ -160,7 +160,7 @@ async fn main() {
     }
 }
 
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool) -> Value {
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<Mutex<TcpStream>>,) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
     let master_repl_offset = 0;
@@ -1053,6 +1053,16 @@ println!("4. Waiting for DB lock...");
 
 
 async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList) {
+    let (read_half, write_half) = stream.into_split();
+
+    let write_half = Arc::new(Mutex::new(write_half));
+
+   let std_stream = stream.into_std().expect("failed to convert to std stream");
+let std_clone = std_stream.try_clone().expect("failed to clone std stream");
+
+let mut stream = TcpStream::from_std(std_stream).expect("failed to convert back to tokio stream");
+let writer_stream = TcpStream::from_std(std_clone).expect("failed to convert clone to tokio stream");
+let write_half = Arc::new(Mutex::new(writer_stream));
     let mut handler = resp::RespHandler::new(stream);
 
     let mut in_transaction = false;
@@ -1129,7 +1139,7 @@ async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: Repl
                             let mut results = Vec::new();
                             for queued_v in command_queue.drain(..) {
                                 let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-                                let res = execute_command(&q_cmd, q_args, &db, is_replica).await;
+                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, &write_half).await;
                                 results.push(res);
                             }
                             Value::Array(results)
@@ -1170,7 +1180,7 @@ async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: Repl
                     Value::SimpleString("OK".to_string())
                 }
 
-                c => execute_command(c, args, &db, is_replica).await,
+                c => execute_command(c, args, &db, is_replica, &replicas, &write_half).await,
             }
         };
 
