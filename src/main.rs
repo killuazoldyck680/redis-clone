@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, result, usize, vec};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::net::tcp::OwnedWriteHalf;
 
 
 use anyhow::Result;
@@ -28,6 +29,8 @@ struct DbValue {
 }
 
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
+
+type ReplicaList = Arc<Mutex<Vec<OwnedWriteHalf>>>;
 
 #[tokio::main]
 async fn main() {
