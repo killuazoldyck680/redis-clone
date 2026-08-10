@@ -83,13 +83,27 @@ async fn main() {
 
     let replicas : ReplicaList = Arc::new(Mutex::new(Vec::new()));
 
-    loop {
-        let (stream, _) = listener.accept().await?;
-
-        let replica_clone = Arc::clone(&replicas)
-    }
-
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
+
+    let (stream, _) = listener.accept().await?;
+
+        let replicas_clone = Arc::clone(&replicas);
+
+
+    tokio::spawn(async move {
+            let (read_half, write_half) = stream.into_split();
+
+            {
+                let mut lock = replicas_clone.lock().await;
+                lock.push(write_half);
+            }
+
+            let _ = read_half;
+        })
+
+
+    
+    
 
     if let Some((master_host, master_port)) = replica_info {
     let master_addr = format!("{master_host}:{master_port}");
