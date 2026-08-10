@@ -30,7 +30,7 @@ struct DbValue {
 
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
-type ReplicaList = Arc<Mutex<Vec<OwnedWriteHalf>>>;
+type ReplicaList = Arc<Mutex<Vec<Arc<Mutex<OwnedWriteHalf>>>>>;
 
 #[tokio::main]
 async fn main() {
@@ -85,29 +85,18 @@ async fn main() {
 
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
-    let (stream, _) = listener.accept().await?;
-
-        let replicas_clone = Arc::clone(&replicas);
-
-
-    tokio::spawn(async move {
-            let (read_half, write_half) = stream.into_split();
-
-            {
-                let mut lock = replicas_clone.lock().await;
-                lock.push(write_half);
-            }
-
-            let _ = read_half;
-        })
-
-
-    
-    
-
     if let Some((master_host, master_port)) = replica_info {
     let master_addr = format!("{master_host}:{master_port}");
 
+
+        
+
+    
+
+    
+    
+
+    
     let port_clone = port.clone();
     tokio::spawn(async move { 
         if let Ok(mut stream) = TcpStream::connect(&master_addr).await {
@@ -156,11 +145,12 @@ async fn main() {
         match stream {
             Ok((stream, _)) => {
                 println!("connection established");
+                let replicas_clone = Arc::clone(&replicas);
 
                 let db_clone = Arc::clone(&db);
 
                 tokio::spawn(async move {
-                    handle_conn(stream, db_clone, is_replica).await;
+                    handle_conn(stream, db_clone, is_replica, replicas_clone).await;
                 });
             }
             Err(e) => {
@@ -1062,7 +1052,7 @@ println!("4. Waiting for DB lock...");
 }
 
 
-async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool) {
+async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList) {
     let mut handler = resp::RespHandler::new(stream);
 
     let mut in_transaction = false;
