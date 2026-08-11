@@ -15,6 +15,7 @@ pub enum Value {
     Error(String),
     RdbFile(Vec<u8>),
     Multiple(Vec<Value>),
+    None,
 }
 
 pub struct RespHandler {
@@ -59,7 +60,9 @@ impl Value {
 
                 result
 
-            }
+            },
+
+            Value::None => { Vec::new()},
             
         }
     }

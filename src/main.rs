@@ -203,51 +203,47 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
 
     println!("3. Entering SET execution...");
     println!("4. Waiting for DB lock...");
-    let mut db_lock = db.lock().unwrap();
 
-    println!("5. DB lock acquired!");
+    // 1. Scope DB lock so it drops before network operations
+    {
+        let mut db_lock = db.lock().unwrap();
+        println!("5. DB lock acquired!");
 
-    let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
+        let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
 
-    db_lock.insert(
-        key.clone(),
-        DbValue {
-            value: DataType::String(val.clone()),
-            expires_at,
-            version: new_version,
-        },
-    );
-
-    // Drop DB lock before async operations
-    drop(db_lock);
+        db_lock.insert(
+            key.clone(),
+            DbValue {
+                value: DataType::String(val.clone()),
+                expires_at,
+                version: new_version,
+            },
+        );
+    } 
 
     // --- PROPAGATION TO REPLICAS ---
     let cmd_bytes = format!(
         "*{}\r\n${}\r\nSET\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
-        3,
-        3,
-        key.len(),
-        key,
-        val.len(),
-        val
+        3, 3, key.len(), key, val.len(), val
     );
 
-    let replicas_guard = replicas.lock().unwrap();
-    for replica in replicas_guard.iter() {
-        // If write_half uses tokio::sync::Mutex:
-        let mut writer = replica.lock().await; 
-        
-        // If write_half uses std::sync::Mutex, scope it so .unwrap() works:
-        // let mut writer = replica.lock().unwrap();
-        
-        let _ = writer.write_all(cmd_bytes.as_bytes()).await;
-        let _ = writer.flush().await;
+    // 2. Clone replica handles to release `replicas` guard immediately
+    let replica_handles: Vec<_> = {
+        let replicas_guard = replicas.lock().unwrap();
+        replicas_guard.clone()
+    };
+
+    // 3. Perform standard synchronous I/O on TcpStream using std::io::Write
+    use std::io::Write;
+    for replica in replica_handles {
+        let mut writer = replica.lock().unwrap();
+        // Write synchronously without holding MutexGuard across an .await point!
+        let _ = writer.write_all(cmd_bytes.as_bytes());
+        let _ = writer.flush();
     }
 
     Value::SimpleString("OK".to_string())
-}
-
-                "get" => {
+}                "get" => {
                     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
                     let mut db_lock = db.lock().unwrap();
@@ -1065,31 +1061,35 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
     }
 
  "psync" => {
+    // 1. Push replica to list
     replicas.lock().unwrap().push(write_half.clone());
 
+    // 2. Build the FULLRESYNC and RDB raw payload
     let fullresync = format!("+FULLRESYNC {} {}\r\n", master_replid, master_repl_offset);
     let hex_str = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656d12c0101200fa0c616f662d626173656c6f6164696e67c000fe00fb0000ff89506c7e0c9202d7";
     let bytes = hex::decode(hex_str).unwrap();
     let rdb_header = format!("${}\r\n", bytes.len());
 
-    // Combine into a single byte buffer
     let mut payload = Vec::new();
     payload.extend_from_slice(fullresync.as_bytes());
     payload.extend_from_slice(rdb_header.as_bytes());
     payload.extend_from_slice(&bytes);
 
-    // Limit the scope of MutexGuard so it drops BEFORE any .await
+    // 3. Perform synchronous write inside the lock scope
+    use std::io::Write;
     {
         let mut writer = write_half.lock().unwrap();
-        // Option A: Use std synchronous write if TcpStream/Writer supports it,
-        // OR Option B: Use tokio::sync::Mutex instead for write_half.
+        let _ = writer.write_all(&payload);
+        let _ = writer.flush();
     }
 
-    Value::NullArray
+    // 4. Return Value::None (or a variant that signals no extra RESP response to serialize)
+    Value::None
 }
     _ => Value::Error("ERR unknown command".to_string())
 }
 }
+
   
 
 
