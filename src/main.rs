@@ -222,27 +222,30 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
     } 
 
     // --- PROPAGATION TO REPLICAS ---
-    let cmd_bytes = format!(
-        "*{}\r\n${}\r\nSET\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
-        3, 3, key.len(), key, val.len(), val
-    );
+ use std::io::Write; // <--- MUST BE IMPORTED
 
-    // 2. Clone replica handles to release `replicas` guard immediately
-    let replica_handles: Vec<_> = {
-        let replicas_guard = replicas.lock().unwrap();
-        replicas_guard.clone()
-    };
+// --- PROPAGATION TO REPLICAS ---
+// --- PROPAGATION TO REPLICAS ---
+let cmd_bytes = format!(
+    "*{}\r\n${}\r\nSET\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
+    3, 3, key.len(), key, val.len(), val
+);
 
-    // 3. Perform standard synchronous I/O on TcpStream using std::io::Write
-    use std::io::Write;
-    for replica in replica_handles {
-        let mut writer = replica.lock().unwrap();
-        // Write synchronously without holding MutexGuard across an .await point!
-        let _ = writer.write_all(cmd_bytes.as_bytes());
-        let _ = writer.flush();
+let replica_handles: Vec<_> = {
+    let replicas_guard = replicas.lock().unwrap();
+    println!("--> Broadcasting to {} registered replica(s)...", replicas_guard.len());
+    replicas_guard.clone()
+};
+
+for (idx, replica) in replica_handles.iter().enumerate() {
+    let mut writer = replica.lock().unwrap();
+
+    // try_write writes directly to the non-blocking socket buffer synchronously
+    match writer.try_write(cmd_bytes.as_bytes()) {
+        Ok(bytes_written) => println!("--> [Replica {}] Sent {} bytes successfully!", idx, bytes_written),
+        Err(e) => println!("--> [Replica {}] try_write FAILED: {:?}", idx, e),
     }
-
-    Value::SimpleString("OK".to_string())
+}    Value::SimpleString("OK".to_string())
 }                "get" => {
                     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
@@ -1061,10 +1064,10 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
     }
 
  "psync" => {
-    // 1. Push replica to list
+    // 1. Register replica stream
     replicas.lock().unwrap().push(write_half.clone());
 
-    // 2. Build the FULLRESYNC and RDB raw payload
+    // 2. Build FULLRESYNC + RDB payload
     let fullresync = format!("+FULLRESYNC {} {}\r\n", master_replid, master_repl_offset);
     let hex_str = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656d12c0101200fa0c616f662d626173656c6f6164696e67c000fe00fb0000ff89506c7e0c9202d7";
     let bytes = hex::decode(hex_str).unwrap();
@@ -1075,15 +1078,18 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
     payload.extend_from_slice(rdb_header.as_bytes());
     payload.extend_from_slice(&bytes);
 
-    // 3. Perform synchronous write inside the lock scope
-    use std::io::Write;
+    // 3. Write payload using Tokio's AsyncWriteExt via try_write or synchronous socket buffer
+    use tokio::io::AsyncWriteExt;
     {
         let mut writer = write_half.lock().unwrap();
-        let _ = writer.write_all(&payload);
-        let _ = writer.flush();
+        // Option 1: If write_half is std::net::TcpStream or std::io::Write:
+        // let _ = writer.write_all(&payload);
+        
+        // Option 2: If write_half is tokio::net::TcpStream:
+        // Use try_write to dump raw bytes straight to socket buffer synchronously
+        let _ = writer.try_write(&payload);
     }
 
-    // 4. Return Value::None (or a variant that signals no extra RESP response to serialize)
     Value::None
 }
     _ => Value::Error("ERR unknown command".to_string())
