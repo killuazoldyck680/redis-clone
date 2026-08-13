@@ -1230,15 +1230,25 @@ let write_half = Arc::new(Mutex::new(writer_stream));
 
         
 
-        println!("Sending value {:?}", response);
+        
 
         if matches!(response, Value::None) {
             continue;
         }
 
-        let is_master_connection {
-            println
+        let is_master_connection = is_replica;
+        if is_master_connection {
+            println!("replica executed command silently");
+            continue;
         }
+
+        println!("Sending value {:?}", response);
+
+        if handler.write_value(response).await.is_err() {
+            break;
+        }
+
+        
     }
 }
 fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
