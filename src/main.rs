@@ -5,7 +5,7 @@ use std::sync::{Arc,Mutex};
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, result, usize, vec};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::OwnedWriteHalf;
 
@@ -13,6 +13,7 @@ use tokio::net::tcp::OwnedWriteHalf;
 
 use anyhow::Result;
 use resp::Value;
+use tokio::stream;
 
 use crate::resp::StreamEntry;
 
@@ -91,7 +92,11 @@ async fn main() {
     let master_addr = format!("{master_host}:{master_port}");
 
 
-        
+    let port_clone = port.clone();
+    
+    
+    let db_master = Arc::clone(&db); 
+    let replicas_master = Arc::clone(&replicas);    
 
     
 
@@ -101,6 +106,7 @@ async fn main() {
     
     let port_clone = port.clone();
     tokio::spawn(async move { 
+        
         if let Ok(mut stream) = TcpStream::connect(&master_addr).await {
             let ping_cmd = "*1\r\n$4\r\nPING\r\n";
             let _ = stream.write_all(ping_cmd.as_bytes()).await;
@@ -133,7 +139,25 @@ async fn main() {
 
             let _  = stream.flush().await;
 
-            let _ = stream.read(&mut buf).await;
+            let mut reader = tokio::io::BufReader::new(stream);
+            let mut line = String::new();
+
+            let _ = reader.read_line(&mut line).await;
+
+            let _ = reader.read_line(&mut line).await;
+
+            if line.starts_with('$') {
+                if let Ok(rdb_len) = line.trim_start_matches('$').trim().parse::<usize>() {
+                    let mut rdb_buf = vec![0u8; rdb_len];
+                    let _ = reader.read_exact(&mut rdb_buf).await;
+                }
+            }
+
+            let stream = reader.into_inner();
+
+            println!("Handshake complete. Starting master replication loop...");
+
+            handle_conn(stream, db_master, true, replicas_master, true).await;
 
 
 
@@ -147,12 +171,12 @@ async fn main() {
         match stream {
             Ok((stream, _)) => {
                 println!("connection established");
-                let replicas_clone = Arc::clone(&replicas);
 
-                let db_clone = Arc::clone(&db);
-
+                let db_client = Arc::clone(&db);
+            let replicas_client = Arc::clone(&replicas);
+                
                 tokio::spawn(async move {
-                    handle_conn(stream, db_clone, is_replica, replicas_clone).await;
+                    handle_conn(stream, db_client, is_replica, replicas_client, false).await;
                 });
             }
             Err(e) => {
@@ -1099,7 +1123,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
   
 
 
-async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList) {
+async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool) {
     
    let std_stream = stream.into_std().expect("failed to convert to std stream");
 let std_clone = std_stream.try_clone().expect("failed to clone std stream");
@@ -1236,17 +1260,19 @@ let write_half = Arc::new(Mutex::new(writer_stream));
             continue;
         }
 
-        let is_master_connection = is_replica;
+        
         if is_master_connection {
             println!("replica executed command silently");
             continue;
-        }
-
-        println!("Sending value {:?}", response);
+        } else {
+            println!("Sending value {:?}", response);
 
         if handler.write_value(response).await.is_err() {
             break;
         }
+        }
+
+        
 
         
     }
