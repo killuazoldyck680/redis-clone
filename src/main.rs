@@ -1228,10 +1228,16 @@ let write_half = Arc::new(Mutex::new(writer_stream));
             }
         };
 
+        
+
         println!("Sending value {:?}", response);
 
-        if handler.write_value(response).await.is_err() {
-            break;
+        if matches!(response, Value::None) {
+            continue;
+        }
+
+        let is_master_connection {
+            println
         }
     }
 }
