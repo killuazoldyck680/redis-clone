@@ -37,35 +37,20 @@ type ReplicaList = Arc<std::sync::Mutex<Vec<Arc<std::sync::Mutex<TcpStream>>>>>;
 
 #[tokio::main]
 async fn main() {
-
     let mut port = "6379".to_string();
-
     let args: Vec<String> = std::env::args().collect();
 
-   
-    
-    
-
-   
     let mut is_replica = false;
-
-
     let mut i = 1;
     let mut replica_info: Option<(String, String)> = None;
-
 
     while i < args.len() {
         if args[i] == "--port" && i + 1 < args.len() {
             port = args[i + 1].clone();
-
-            i += 2
-            
+            i += 2;
         } else if args[i] == "--replicaof" && i + 1 < args.len() {
-            
             is_replica = true;
-
             let parts: Vec<&str> = args[i + 1].split_whitespace().collect();
-
             if parts.len() == 2 {
                 replica_info = Some((parts[0].to_string(), parts[1].to_string()));
             }
@@ -73,97 +58,82 @@ async fn main() {
         } else {
             i += 1;
         }
-    
-
-        
-
-      
     }
 
     let addr = format!("127.0.0.1:{port}");
-
     let listener = TcpListener::bind(&addr).await.unwrap();
 
-    let replicas : ReplicaList = Arc::new(Mutex::new(Vec::new()));
-
+    let replicas: ReplicaList = Arc::new(Mutex::new(Vec::new()));
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
     if let Some((master_host, master_port)) = replica_info {
-    let master_addr = format!("{master_host}:{master_port}");
-
-
-    let port_clone = port.clone();
-    
-    
-    let db_master = Arc::clone(&db); 
-    let replicas_master = Arc::clone(&replicas);    
-
-    
-
-    
-    
-
-    
-    let port_clone = port.clone();
-    tokio::spawn(async move { 
+        let master_addr = format!("{master_host}:{master_port}");
+        let port_clone = port.clone(); // FIX: Removed duplicate `let port_clone` declaration
         
-        if let Ok(mut stream) = TcpStream::connect(&master_addr).await {
-            let ping_cmd = "*1\r\n$4\r\nPING\r\n";
-            let _ = stream.write_all(ping_cmd.as_bytes()).await;
+        let db_master = Arc::clone(&db); 
+        let replicas_master = Arc::clone(&replicas);    
 
-            let _  = stream.flush().await;
-            
+        tokio::spawn(async move { 
+            if let Ok(stream) = TcpStream::connect(&master_addr).await {
+                // FIX: Wrap stream in BufReader from the VERY BEGINNING so reading and writing stay unified
+                let mut reader = tokio::io::BufReader::new(stream);
+                let mut line = String::new();
 
-            let mut buf = [0u8; 512];
-            let _ = stream.read(&mut buf).await;
+                // 1. PING
+                let ping_cmd = "*1\r\n$4\r\nPING\r\n";
+                let _ = reader.write_all(ping_cmd.as_bytes()).await;
+                let _ = reader.flush().await;
+                line.clear();
+                let _ = reader.read_line(&mut line).await; // FIX: Read response via BufReader
 
-            let replconf_port = format!("*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n", port_clone.len(), port_clone);
+                // 2. REPLCONF listening-port
+                let replconf_port = format!(
+                    "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n", 
+                    port_clone.len(), 
+                    port_clone
+                );
+                let _ = reader.write_all(replconf_port.as_bytes()).await;
+                let _ = reader.flush().await;
+                line.clear();
+                let _ = reader.read_line(&mut line).await; // FIX: Read response via BufReader
 
-            let _ = stream.write_all(replconf_port.as_bytes()).await;
+                // 3. REPLCONF capa
+                let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
+                let _ = reader.write_all(replconf_capa.as_bytes()).await;
+                let _ = reader.flush().await;
+                line.clear();
+                let _ = reader.read_line(&mut line).await; // FIX: Read response via BufReader
 
-            let _  = stream.flush().await;
+                // 4. PSYNC
+                let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
+                let _ = reader.write_all(psync.as_bytes()).await;
+                let _ = reader.flush().await;
+                
+                // 5. READ +FULLRESYNC line
+                line.clear(); // FIX: Cleared line after declaration, not before
+                let _ = reader.read_line(&mut line).await;
 
-            let _  = stream.read(&mut buf).await;
+                // 6. READ $rdb_len line (e.g. "$88\r\n")
+                line.clear();
+                let _ = reader.read_line(&mut line).await;
 
-            let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
-
-            let _ = stream.write_all(replconf_capa.as_bytes()).await;
-
-            let _  = stream.flush().await;
-
-            let _ = stream.read(&mut buf).await;
-
-            let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
-
-            let _ = stream.write_all(psync.as_bytes()).await;
-
-            let _  = stream.flush().await;
-
-            let mut reader = tokio::io::BufReader::new(stream);
-            let mut line = String::new();
-
-            let _ = reader.read_line(&mut line).await;
-
-            let _ = reader.read_line(&mut line).await;
-
-            if line.starts_with('$') {
-                if let Ok(rdb_len) = line.trim_start_matches('$').trim().parse::<usize>() {
-                    let mut rdb_buf = vec![0u8; rdb_len];
-                    let _ = reader.read_exact(&mut rdb_buf).await;
+                // 7. DRAIN RDB PAYLOAD
+                if line.starts_with('$') {
+                    if let Ok(rdb_len) = line.trim_start_matches('$').trim().parse::<usize>() {
+                        let mut rdb_buf = vec![0u8; rdb_len];
+                        let _ = reader.read_exact(&mut rdb_buf).await; // FIX: Drains exact RDB bytes out of stream
+                    }
                 }
+
+                // Unwrap BufReader back to standard TcpStream
+                let stream = reader.into_inner();
+
+                println!("Handshake complete. Starting master replication loop...");
+
+                handle_conn(stream, db_master, true, replicas_master, true).await;
             }
-
-            let stream = reader.into_inner();
-
-            println!("Handshake complete. Starting master replication loop...");
-
-            handle_conn(stream, db_master, true, replicas_master, true).await;
-
-
-
-        }
-    });
-}
+        });
+    }
 
     loop {
         let stream = listener.accept().await;
@@ -173,7 +143,7 @@ async fn main() {
                 println!("connection established");
 
                 let db_client = Arc::clone(&db);
-            let replicas_client = Arc::clone(&replicas);
+                let replicas_client = Arc::clone(&replicas);
                 
                 tokio::spawn(async move {
                     handle_conn(stream, db_client, is_replica, replicas_client, false).await;
@@ -185,7 +155,6 @@ async fn main() {
         }
     }
 }
-
 async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>,) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
