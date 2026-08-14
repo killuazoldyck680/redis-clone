@@ -1051,23 +1051,23 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 }
 
     "replconf" => {
-        let arg = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+    let sub_cmd = args.get(0)
+        .and_then(|a| unpack_bulk_str(a.clone()).ok())
+        .unwrap_or_default()
+        .to_lowercase();
 
-        let sub_cmd  = arg.to_lowercase();
-
-        if sub_cmd == "listening-port" || sub_cmd == "capa" {
-            Value::SimpleString("OK".to_string())
-        } else if arg == "getack" {
-            Value::Array(vec![Value::BulkString("REPLCONF".to_string()),
+    if sub_cmd == "listening-port" || sub_cmd == "capa" {
+        Value::SimpleString("OK".to_string())
+    } else if sub_cmd == "getack" {
+        Value::Array(vec![
+            Value::BulkString("REPLCONF".to_string()),
             Value::BulkString("ACK".to_string()),
-            Value::BulkString("0".to_string())
-            ])
-        } else {
-            Value::None
-        }
-
-        
+            Value::BulkString("0".to_string()),
+        ])
+    } else {
+        Value::SimpleString("OK".to_string())
     }
+}
 
  "psync" => {
     // 1. Register replica stream
@@ -1140,6 +1140,8 @@ let write_half = Arc::new(Mutex::new(writer_stream));
         };
 
         let cmd_name = command.trim().to_lowercase();
+        let is_getack = cmd_name == "replconf" && args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()).map(|s| s.to_lowercase() == "getack").unwrap_or(false);
+
 
         let response = if in_transaction && cmd_name != "exec" && cmd_name != "discard" {
             if cmd_name == "watch" {
@@ -1230,7 +1232,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                     Value::SimpleString("OK".to_string())
                 }
 
-                c => execute_command(c, args, &db, is_replica, &replicas, &write_half).await,
+                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half).await,
             }
         };
 
@@ -1243,25 +1245,19 @@ let write_half = Arc::new(Mutex::new(writer_stream));
         }
 
         
-        if is_master_connection {
-            println!("replica executed command silently");
-            
-
-
-        } else if cmd_name == "replconf" {
-            println!("Sending value {:?}", response);
-        }
         
-         else {
-            println!("Sending value {:?}", response);
+    
 
-        if handler.write_value(response).await.is_err() {
-            break;
+         
+        if is_master_connection && !is_getack {
+           println!("replica executed command silently");
+       continue; 
         }
-        }
 
-        
-
+        println!("Sending value {:?}", response);
+   if handler.write_value(response).await.is_err() {
+       break;
+   }
         
 
         
