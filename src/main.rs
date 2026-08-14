@@ -1062,6 +1062,8 @@ for (idx, replica) in replica_handles.iter().enumerate() {
             Value::BulkString("ACK".to_string()),
             Value::BulkString("0".to_string())
             ])
+        } else {
+            Value::None
         }
 
         
