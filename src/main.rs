@@ -1051,9 +1051,15 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 }
 
     "replconf" => {
+        let arg = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap()
 
+        if arg == "listening-port" || "capa" {
+            Value::SimpleString("OK".to_string())
+        } else if arg == "getback".to_lowercase() {
+            Value::SimpleString("REPLCONF ACK 0".to_string())
+        }
 
-        Value::SimpleString("OK".to_string())
+        
     }
 
  "psync" => {
