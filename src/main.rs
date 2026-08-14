@@ -1245,14 +1245,22 @@ let write_half = Arc::new(Mutex::new(writer_stream));
         
         if is_master_connection {
             println!("replica executed command silently");
-            continue;
-        } else {
+            
+
+
+        } else if cmd_name == "replconf" {
+            println!("Sending value {:?}", response);
+        }
+        
+         else {
             println!("Sending value {:?}", response);
 
         if handler.write_value(response).await.is_err() {
             break;
         }
         }
+
+        
 
         
 
