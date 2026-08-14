@@ -1051,12 +1051,17 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 }
 
     "replconf" => {
-        let arg = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap()
+        let arg = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-        if arg == "listening-port" || "capa" {
+        let sub_cmd  = arg.to_lowercase();
+
+        if sub_cmd == "listening-port" || sub_cmd == "capa" {
             Value::SimpleString("OK".to_string())
-        } else if arg == "getback".to_lowercase() {
-            Value::SimpleString("REPLCONF ACK 0".to_string())
+        } else if arg == "getack" {
+            Value::Array(vec![Value::BulkString("REPLCONF".to_string()),
+            Value::BulkString("ACK".to_string()),
+            Value::BulkString("0".to_string())
+            ])
         }
 
         
