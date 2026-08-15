@@ -76,14 +76,14 @@ impl RespHandler {
         }
     }
 
-pub async fn read_value(&mut self) -> Result<Option<Value>> {
+pub async fn read_value(&mut self) -> Result<Option<(Value, usize)>> {
     loop {
         if !self.buffer.is_empty() {
             println!("--> Buffer has {} bytes. Parsing...", self.buffer.len());
             match parse_message(self.buffer.clone()) {
                 Ok((v, bytes_consumed)) => {
                     self.buffer.split_to(bytes_consumed);
-                    return Ok(Some(v));
+                    return Ok(Some((v, bytes_consumed)));
                 }
                 Err(e) => {
                     println!("--> Parser needed more data or failed: {:?}", e);

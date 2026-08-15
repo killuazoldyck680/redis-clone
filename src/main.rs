@@ -164,7 +164,7 @@ async fn main() {
         }
     }
 }
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>,) -> Value {
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
     
@@ -1067,10 +1067,12 @@ for (idx, replica) in replica_handles.iter().enumerate() {
     if sub_cmd == "listening-port" || sub_cmd == "capa" {
         Value::SimpleString("OK".to_string())
     } else if sub_cmd == "getack" {
+        let current_offset = *master_repl_offset.lock().unwrap();
+
         Value::Array(vec![
             Value::BulkString("REPLCONF".to_string()),
             Value::BulkString("ACK".to_string()),
-            Value::BulkString("0".to_string()),
+            Value::BulkString(current_offset.to_string()),
         ])
     } else {
         Value::SimpleString("OK".to_string())
@@ -1131,8 +1133,8 @@ let write_half = Arc::new(Mutex::new(writer_stream));
 
     loop {
         println!("1. Reading value from socket...");
-        let value = match handler.read_value().await {
-            Ok(Some(v)) => v,
+        let (value, bytes_read) = match handler.read_value().await {
+            Ok(Some((v, bytes))) => (v,bytes),
             _ => break, // Connection closed or socket read error
         };
         println!("2. Value read successfully: {:?}", value);
@@ -1259,12 +1261,17 @@ let write_half = Arc::new(Mutex::new(writer_stream));
          
         if is_master_connection && !is_getack {
            println!("replica executed command silently");
+           *master_repl_offset.lock().unwrap() += bytes_read;
        continue; 
         }
 
         println!("Sending value {:?}", response);
    if handler.write_value(response).await.is_err() {
        break;
+   }
+
+   if is_master_connection {
+    *master_repl_offset.lock().unwrap() += bytes_read;
    }
         
 
