@@ -130,6 +130,8 @@ async fn main() {
 
                 println!("Handshake complete. Starting master replication loop...");
 
+                let running_counter = 0;
+
                 handle_conn(stream, db_master, true, replicas_master, true).await;
             }
         });
