@@ -130,7 +130,7 @@ async fn main() {
 
                 println!("Handshake complete. Starting master replication loop...");
 
-                let running_counter = 0;
+                
 
                 handle_conn(stream, db_master, true, replicas_master, true).await;
             }
@@ -160,7 +160,7 @@ async fn main() {
 async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>,) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
-    let master_repl_offset = 0;
+    let master_repl_offset : Arc<Mutex<usize>>  = 0;
 
     match command.to_lowercase().as_str() {
         "ping" => Value::SimpleString("PONG".to_string()),
