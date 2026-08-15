@@ -66,14 +66,21 @@ async fn main() {
     let replicas: ReplicaList = Arc::new(Mutex::new(Vec::new()));
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
+    let master_repl_offset = Arc::new(Mutex::new(0usize));
+ 
+
     if let Some((master_host, master_port)) = replica_info {
         let master_addr = format!("{master_host}:{master_port}");
         let port_clone = port.clone(); // FIX: Removed duplicate `let port_clone` declaration
         
         let db_master = Arc::clone(&db); 
-        let replicas_master = Arc::clone(&replicas);    
+        let replicas_master = Arc::clone(&replicas);   
+
+        
 
         tokio::spawn(async move { 
+            
+
             if let Ok(stream) = TcpStream::connect(&master_addr).await {
                 // FIX: Wrap stream in BufReader from the VERY BEGINNING so reading and writing stay unified
                 let mut reader = tokio::io::BufReader::new(stream);
@@ -132,7 +139,7 @@ async fn main() {
 
                 
 
-                handle_conn(stream, db_master, true, replicas_master, true).await;
+                handle_conn(stream, db_master, true, replicas_master, true, Arc::clone(&master_repl_offset)).await;
             }
         });
     }
@@ -148,7 +155,7 @@ async fn main() {
                 let replicas_client = Arc::clone(&replicas);
                 
                 tokio::spawn(async move {
-                    handle_conn(stream, db_client, is_replica, replicas_client, false).await;
+                    handle_conn(stream, db_client, is_replica, replicas_client, false, Arc::clone(&master_repl_offset)).await;
                 });
             }
             Err(e) => {
@@ -160,8 +167,7 @@ async fn main() {
 async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>,) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
-    let master_repl_offset : Arc<Mutex<usize>>  = 0;
-
+    
     match command.to_lowercase().as_str() {
         "ping" => Value::SimpleString("PONG".to_string()),
                 "echo" => args.first().unwrap().clone(),
@@ -1107,7 +1113,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
   
 
 
-async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool) {
+async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool, master_repl_offset: Arc<Mutex<usize>>) {
     
    let std_stream = stream.into_std().expect("failed to convert to std stream");
 let std_clone = std_stream.try_clone().expect("failed to clone std stream");
