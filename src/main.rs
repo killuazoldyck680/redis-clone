@@ -65,24 +65,18 @@ async fn main() {
 
     let replicas: ReplicaList = Arc::new(Mutex::new(Vec::new()));
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
-
     let master_repl_offset = Arc::new(Mutex::new(0usize));
- 
 
     if let Some((master_host, master_port)) = replica_info {
         let master_addr = format!("{master_host}:{master_port}");
-        let port_clone = port.clone(); // FIX: Removed duplicate `let port_clone` declaration
+        let port_clone = port.clone();
         
         let db_master = Arc::clone(&db); 
         let replicas_master = Arc::clone(&replicas);   
-
-        
+        let offset_master = Arc::clone(&master_repl_offset); // FIX 1: Clone before spawn
 
         tokio::spawn(async move { 
-            
-
             if let Ok(stream) = TcpStream::connect(&master_addr).await {
-                // FIX: Wrap stream in BufReader from the VERY BEGINNING so reading and writing stay unified
                 let mut reader = tokio::io::BufReader::new(stream);
                 let mut line = String::new();
 
@@ -91,7 +85,7 @@ async fn main() {
                 let _ = reader.write_all(ping_cmd.as_bytes()).await;
                 let _ = reader.flush().await;
                 line.clear();
-                let _ = reader.read_line(&mut line).await; // FIX: Read response via BufReader
+                let _ = reader.read_line(&mut line).await;
 
                 // 2. REPLCONF listening-port
                 let replconf_port = format!(
@@ -102,14 +96,14 @@ async fn main() {
                 let _ = reader.write_all(replconf_port.as_bytes()).await;
                 let _ = reader.flush().await;
                 line.clear();
-                let _ = reader.read_line(&mut line).await; // FIX: Read response via BufReader
+                let _ = reader.read_line(&mut line).await;
 
                 // 3. REPLCONF capa
                 let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
                 let _ = reader.write_all(replconf_capa.as_bytes()).await;
                 let _ = reader.flush().await;
                 line.clear();
-                let _ = reader.read_line(&mut line).await; // FIX: Read response via BufReader
+                let _ = reader.read_line(&mut line).await;
 
                 // 4. PSYNC
                 let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
@@ -117,10 +111,10 @@ async fn main() {
                 let _ = reader.flush().await;
                 
                 // 5. READ +FULLRESYNC line
-                line.clear(); // FIX: Cleared line after declaration, not before
+                line.clear();
                 let _ = reader.read_line(&mut line).await;
 
-                // 6. READ $rdb_len line (e.g. "$88\r\n")
+                // 6. READ $rdb_len line
                 line.clear();
                 let _ = reader.read_line(&mut line).await;
 
@@ -128,18 +122,15 @@ async fn main() {
                 if line.starts_with('$') {
                     if let Ok(rdb_len) = line.trim_start_matches('$').trim().parse::<usize>() {
                         let mut rdb_buf = vec![0u8; rdb_len];
-                        let _ = reader.read_exact(&mut rdb_buf).await; // FIX: Drains exact RDB bytes out of stream
+                        let _ = reader.read_exact(&mut rdb_buf).await;
                     }
                 }
 
-                // Unwrap BufReader back to standard TcpStream
                 let stream = reader.into_inner();
 
                 println!("Handshake complete. Starting master replication loop...");
 
-                
-
-                handle_conn(stream, db_master, true, replicas_master, true, Arc::clone(&master_repl_offset)).await;
+                handle_conn(stream, db_master, true, replicas_master, true, offset_master).await;
             }
         });
     }
@@ -153,9 +144,10 @@ async fn main() {
 
                 let db_client = Arc::clone(&db);
                 let replicas_client = Arc::clone(&replicas);
+                let offset_client = Arc::clone(&master_repl_offset);
                 
                 tokio::spawn(async move {
-                    handle_conn(stream, db_client, is_replica, replicas_client, false, Arc::clone(&master_repl_offset)).await;
+                    handle_conn(stream, db_client, is_replica, replicas_client, false, offset_client).await; // FIX 2: Pass offset_client directly
                 });
             }
             Err(e) => {
@@ -1053,9 +1045,9 @@ for (idx, replica) in replica_handles.iter().enumerate() {
             let role = if is_replica {"slave"} else {"master"};
 
 
-           
+           let current_offset = *master_repl_offset.lock().unwrap();
             
-            Value::BulkString(format!("# Replication\r\nrole:{role}\r\nmaster_replid:{master_replid}\r\nmaster_repl_offset:{master_repl_offset}\r\n"))
+            Value::BulkString(format!("# Replication\r\nrole:{role}\r\nmaster_replid:{master_replid}\r\nmaster_repl_offset:{current_offset}\r\n"))
 }
 
     "replconf" => {
@@ -1084,7 +1076,8 @@ for (idx, replica) in replica_handles.iter().enumerate() {
     replicas.lock().unwrap().push(write_half.clone());
 
     // 2. Build FULLRESYNC + RDB payload
-    let fullresync = format!("+FULLRESYNC {} {}\r\n", master_replid, master_repl_offset);
+    let current_offset = *master_repl_offset.lock().unwrap();
+    let fullresync = format!("+FULLRESYNC {} {}\r\n", master_replid, current_offset);
     let hex_str = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656d12c0101200fa0c616f662d626173656c6f6164696e67c000fe00fb0000ff89506c7e0c9202d7";
     let bytes = hex::decode(hex_str).unwrap();
     let rdb_header = format!("${}\r\n", bytes.len());
@@ -1201,7 +1194,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                             let mut results = Vec::new();
                             for queued_v in command_queue.drain(..) {
                                 let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, &write_half).await;
+                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset)).await;
                                 results.push(res);
                             }
                             Value::Array(results)
@@ -1242,7 +1235,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                     Value::SimpleString("OK".to_string())
                 }
 
-                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half).await,
+                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset)).await,
             }
         };
 
@@ -1251,28 +1244,47 @@ let write_half = Arc::new(Mutex::new(writer_stream));
         
 
         if matches!(response, Value::None) {
+            if is_master_connection {
+                *master_repl_offset.lock().unwrap() += bytes_read;
+            }
+            
+            continue;
+
+
+        }
+
+        if is_master_connection {
+            if is_getack {
+                println!("Sending GETACK response: {:?}", response);
+
+                let write_result = handler.write_value(response).await;
+
+                *master_repl_offset.lock().unwrap() += bytes_read;
+
+                if write_result.is_err() {
+                    break;
+                }
+
+            } else {
+                println!("replica executed command silently");
+
+                let mut offset_guard = master_repl_offset.lock().unwrap();
+
+                *offset_guard += bytes_read;
+            }
+
             continue;
         }
 
-        
+        println!("Sending value {:?}", response);
+
+        if handler.write_value(response).await.is_err() {
+            break;
+        }
         
     
 
          
-        if is_master_connection && !is_getack {
-           println!("replica executed command silently");
-           *master_repl_offset.lock().unwrap() += bytes_read;
-       continue; 
-        }
-
-        println!("Sending value {:?}", response);
-   if handler.write_value(response).await.is_err() {
-       break;
-   }
-
-   if is_master_connection {
-    *master_repl_offset.lock().unwrap() += bytes_read;
-   }
         
 
         
