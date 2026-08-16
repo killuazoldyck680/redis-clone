@@ -1103,10 +1103,31 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 }
 
  "wait" => {
-    let numreplicas = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap().parse<u6
-    4>::();
+    let num_replicas: usize = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+        Some(s) => match s.parse() {
+            Ok(n) => n,
+            Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
+        },
 
-    let timeout = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap().parse<u64>::();
+        None => return Value::Error("ERR wrong number of arguments for 'wait' command".to_string()),
+    };
+
+    let timeout_ms: u64 = match args.get(1).and_then(|a| => unpack_bulk_str(a.clone()).ok()) {
+       Some(s) => match s.parse() {
+           Ok(n) => n,
+           Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
+       },
+
+       None => return Value::Error("ERR wrong number of arguments for 'wait' command".to_string()),
+    };
+
+    let connected_count = replicas.lock().unwrap().len();
+
+    if num_replicas = 0 || connected_count == 0 {
+        return Value::Integer(0);
+    }
+
+    Value::Integer(connected_count as i64)
  }
     _ => Value::Error("ERR unknown command".to_string())
 }
