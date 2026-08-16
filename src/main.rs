@@ -1103,7 +1103,10 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 }
 
  "wait" => {
-    
+    let numreplicas = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap().parse<u6
+    4>::();
+
+    let timeout = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap().parse<u64>::();
  }
     _ => Value::Error("ERR unknown command".to_string())
 }
