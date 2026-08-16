@@ -1112,7 +1112,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
         None => return Value::Error("ERR wrong number of arguments for 'wait' command".to_string()),
     };
 
-    let timeout_ms: u64 = match args.get(1).and_then(|a| => unpack_bulk_str(a.clone()).ok()) {
+    let timeout_ms: u64 = match args.get(1).and_then(|a|  unpack_bulk_str(a.clone()).ok()) {
        Some(s) => match s.parse() {
            Ok(n) => n,
            Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
@@ -1123,7 +1123,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
     let connected_count = replicas.lock().unwrap().len();
 
-    if num_replicas = 0 || connected_count == 0 {
+    if num_replicas == 0 || connected_count == 0 {
         return Value::Integer(0);
     }
 
