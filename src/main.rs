@@ -1101,6 +1101,10 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
     Value::None
 }
+
+ "wait" => {
+    
+ }
     _ => Value::Error("ERR unknown command".to_string())
 }
 }
