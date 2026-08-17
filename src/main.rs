@@ -1128,6 +1128,12 @@ for (idx, replica) in replica_handles.iter().enumerate() {
     }
 
     Value::Integer(connected_count as i64)
+
+    if master_repl_offset == 0 {
+
+    }
+
+    
  }
     _ => Value::Error("ERR unknown command".to_string())
 }
