@@ -1101,7 +1101,6 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
     Value::None
 }
-
 "wait" => {
     let num_replicas: usize = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
         Some(s) => match s.parse() {
@@ -1129,44 +1128,70 @@ for (idx, replica) in replica_handles.iter().enumerate() {
     } else {
         let replica_list = replicas.lock().unwrap().clone();
 
-        // 1. Send REPLCONF GETACK * to all connected replicas
+        // 1. Send REPLCONF GETACK * using non-blocking try_write
+        let getack_cmd = b"*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n";
         for stream_arc in replica_list.iter() {
-            let mut guard = stream_arc.lock().unwrap();
-            let _ = guard.write_all(b"*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n").await;
-            let _ = guard.flush().await;
+            let mut written = 0;
+            while written < getack_cmd.len() {
+                let res = {
+                    // Lock scope explicitly limited to this block
+                    let mut guard = stream_arc.lock().unwrap();
+                    guard.try_write(&getack_cmd[written..])
+                }; // <--- MutexGuard dropped HERE
+
+                match res {
+                    Ok(n) => written += n,
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        // Guard is gone, safe to .await sleep
+                        tokio::time::sleep(Duration::from_millis(1)).await;
+                    }
+                    _ => break,
+                }
+            }
         }
 
-        let mut ack_count = 0;
+        // 2. Poll for ACK responses using non-blocking try_read
         let start_time = tokio::time::Instant::now();
         let timeout = Duration::from_millis(timeout_ms);
+        let mut ack_count = 0;
 
-        // 2. Read ACK responses directly from streams
         for stream_arc in replica_list.iter() {
             if ack_count >= num_replicas {
                 break;
             }
 
-            let remaining_time = timeout.saturating_sub(start_time.elapsed());
-            if remaining_time.is_zero() {
-                break;
+            let mut bytes_read = 0;
+            let mut buf = [0u8; 128];
+
+            while start_time.elapsed() < timeout {
+                let res = {
+                    // Lock scope explicitly limited to this block
+                    let mut guard = stream_arc.lock().unwrap();
+                    guard.try_read(&mut buf)
+                }; // <--- MutexGuard dropped HERE
+
+                match res {
+                    Ok(n) if n > 0 => {
+                        bytes_read = n;
+                        break;
+                    }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        // Guard is gone, safe to .await sleep
+                        tokio::time::sleep(Duration::from_millis(2)).await;
+                    }
+                    _ => break,
+                }
             }
 
-            // Attempt to read from the socket within the remaining timeout budget
-            let mut buf = [0u8; 128];
-            let read_result = tokio::time::timeout(remaining_time, async {
-                let mut guard = stream_arc.lock().unwrap();
-                let stream: &mut tokio::net::TcpStream = &mut *guard;
-                stream.read(&mut buf).await
-            }).await;
-
-            if let Ok(Ok(n)) = read_result {
-                if n > 0 {
-                    let response = String::from_utf8_lossy(&buf[..n]);
-                    // Parse the offset returned in REPLCONF ACK <offset>
-                    if let Some(offset) = parse_ack_offset(&response) {
-                        if offset >= target_offset {
-                            ack_count += 1;
-                        }
+            if bytes_read > 0 {
+                let response = String::from_utf8_lossy(&buf[..bytes_read]);
+                if let Some(offset) = response
+                    .lines()
+                    .filter_map(|line| line.trim().parse::<usize>().ok())
+                    .last()
+                {
+                    if offset >= target_offset {
+                        ack_count += 1;
                     }
                 }
             }
@@ -1174,8 +1199,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
         Value::Integer(ack_count as i64)
     }
-} 
-_ => Value::Error("ERR unknown command".to_string())
+}_ => Value::Error("ERR unknown command".to_string())
 }
 }
 
@@ -1382,22 +1406,4 @@ fn unpack_bulk_str(value: Value) -> Result<String> {
     }
 }
 
-fn parse_ack_offset(response: &str) -> Option<usize> {
-    // Splits the RESP response lines and finds the number after the ACK token
-    let parts: Vec<&str> = response.split("\r\n").collect();
-    for i in 0..parts.len() {
-        if parts[i].eq_ignore_ascii_case("ACK") || parts[i].eq_ignore_ascii_case("$3\r\nACK") {
-            if let Some(next_val) = parts.get(i + 2) {
-                if let Ok(offset) = next_val.parse::<usize>() {
-                    return Some(offset);
-                }
-            }
-        }
-    }
 
-    // Fallback: search for any standalone trailing numeric line in the buffer
-    response
-        .lines()
-        .filter_map(|line| line.trim().parse::<usize>().ok())
-        .last()
-}
