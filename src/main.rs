@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::env::args;
 use std::fmt::format;
 use std::sync::{Arc,Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, result, usize, vec};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
@@ -1102,68 +1102,80 @@ for (idx, replica) in replica_handles.iter().enumerate() {
     Value::None
 }
 
- "wait" => {
+"wait" => {
     let num_replicas: usize = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
         Some(s) => match s.parse() {
             Ok(n) => n,
             Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
         },
-
         None => return Value::Error("ERR wrong number of arguments for 'wait' command".to_string()),
     };
 
-    let timeout_ms: u64 = match args.get(1).and_then(|a|  unpack_bulk_str(a.clone()).ok()) {
-       Some(s) => match s.parse() {
-           Ok(n) => n,
-           Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
-       },
-
-       None => return Value::Error("ERR wrong number of arguments for 'wait' command".to_string()),
+    let timeout_ms: u64 = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+        Some(s) => match s.parse() {
+            Ok(n) => n,
+            Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
+        },
+        None => return Value::Error("ERR wrong number of arguments for 'wait' command".to_string()),
     };
 
     let connected_replicas_count = replicas.lock().unwrap().len();
-
-    
-    
-
-
     let target_offset = *master_repl_offset.lock().unwrap();
 
-    if num_replicas == 0 || connected_replicas_count == 0{
+    if num_replicas == 0 || connected_replicas_count == 0 {
         Value::Integer(0)
-    } else if target_offset == 0{
+    } else if target_offset == 0 {
         Value::Integer(connected_replicas_count as i64)
-    } else if target_offset > 0{
-        let mut replica_guard = replicas.lock().unwrap();
+    } else {
+        let replica_list = replicas.lock().unwrap().clone();
 
-        for stream in replica_guard.iter_mut() {
-           stream.write_all(b"*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n").await;
-
-           stream.flush().await; 
+        // 1. Send REPLCONF GETACK * to all connected replicas
+        for stream_arc in replica_list.iter() {
+            let mut guard = stream_arc.lock().unwrap();
+            let _ = guard.write_all(b"*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n").await;
+            let _ = guard.flush().await;
         }
-        tokio::time::timeout(Duration::from_millis(timeout_ms), async move { 
-            let mut ack_count = 0;
 
-            if offset >= target_offset {
-                ack_count += 1
-            } else if ack_count >= num_replicas {
+        let mut ack_count = 0;
+        let start_time = tokio::time::Instant::now();
+        let timeout = Duration::from_millis(timeout_ms);
+
+        // 2. Read ACK responses directly from streams
+        for stream_arc in replica_list.iter() {
+            if ack_count >= num_replicas {
                 break;
-            } else {
-               Value::Integer(ack_count as i64) 
             }
-         })
 
-
+            let remaining_time = timeout.saturating_sub(start_time.elapsed());
+            if remaining_time.is_zero() {
+                break;
             }
-    
-    
-     else {
-        Value::Integer(connected_replicas_count as i64)
+
+            // Attempt to read from the socket within the remaining timeout budget
+            let mut buf = [0u8; 128];
+            let read_result = tokio::time::timeout(remaining_time, async {
+                let mut guard = stream_arc.lock().unwrap();
+                let stream: &mut tokio::net::TcpStream = &mut *guard;
+                stream.read(&mut buf).await
+            }).await;
+
+            if let Ok(Ok(n)) = read_result {
+                if n > 0 {
+                    let response = String::from_utf8_lossy(&buf[..n]);
+                    // Parse the offset returned in REPLCONF ACK <offset>
+                    if let Some(offset) = parse_ack_offset(&response) {
+                        if offset >= target_offset {
+                            ack_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        Value::Integer(ack_count as i64)
     }
-
-
- }
-    _ => Value::Error("ERR unknown command".to_string())
+} 
+_ => Value::Error("ERR unknown command".to_string())
 }
 }
 
@@ -1368,4 +1380,24 @@ fn unpack_bulk_str(value: Value) -> Result<String> {
         Value::BulkString(s) => Ok(s),
         _ => Err(anyhow::anyhow!("Expected command to be a bulk string")),
     }
+}
+
+fn parse_ack_offset(response: &str) -> Option<usize> {
+    // Splits the RESP response lines and finds the number after the ACK token
+    let parts: Vec<&str> = response.split("\r\n").collect();
+    for i in 0..parts.len() {
+        if parts[i].eq_ignore_ascii_case("ACK") || parts[i].eq_ignore_ascii_case("$3\r\nACK") {
+            if let Some(next_val) = parts.get(i + 2) {
+                if let Ok(offset) = next_val.parse::<usize>() {
+                    return Some(offset);
+                }
+            }
+        }
+    }
+
+    // Fallback: search for any standalone trailing numeric line in the buffer
+    response
+        .lines()
+        .filter_map(|line| line.trim().parse::<usize>().ok())
+        .last()
 }
