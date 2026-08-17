@@ -1123,18 +1123,18 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
     let connected_replicas_count = replicas.lock().unwrap().len();
 
-    if num_replicas == 0 || connected_count == 0 {
-        return Value::Integer(0);
-    }
+    
+    
 
-    Value::Integer(connected_count as i64)
 
-    let connected_replicas_count = replicas.lock().unwrap().len();
+    let current_offset = master_repl_offset.lock().unwrap();
 
     if num_replicas == 0 {
         Value::Integer(0)
-    } else if master_repl_offset == 0{
-        Value::Integer(connected_replicas_count)
+    } else if *current_offset == 0{
+        Value::Integer(connected_replicas_count as i64)
+    } else {
+        Value::Integer(connected_replicas_count as i64)
     }
 
 
