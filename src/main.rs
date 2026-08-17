@@ -1121,7 +1121,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
        None => return Value::Error("ERR wrong number of arguments for 'wait' command".to_string()),
     };
 
-    let connected_count = replicas.lock().unwrap().len();
+    let connected_replicas_count = replicas.lock().unwrap().len();
 
     if num_replicas == 0 || connected_count == 0 {
         return Value::Integer(0);
@@ -1129,11 +1129,15 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
     Value::Integer(connected_count as i64)
 
-    if master_repl_offset == 0 {
+    let connected_replicas_count = replicas.lock().unwrap().len();
 
+    if num_replicas == 0 {
+        Value::Integer(0)
+    } else if master_repl_offset == 0{
+        Value::Integer(connected_replicas_count)
     }
 
-    
+
  }
     _ => Value::Error("ERR unknown command".to_string())
 }
