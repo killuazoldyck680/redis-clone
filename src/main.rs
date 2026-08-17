@@ -1133,9 +1133,15 @@ for (idx, replica) in replica_handles.iter().enumerate() {
         Value::Integer(0)
     } else if target_offset == 0{
         Value::Integer(connected_replicas_count as i64)
-    } else if *current_offset > 0{
-        REPLCONF GETACK * (*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n)
-    }
+    } else if target_offset > 0{
+        let mut replica_guard = replicas.lock().unwrap();
+
+        replica_guard.iter_mut().write_all(b"*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n").await.flush()
+
+        let ack_count = 0;
+
+
+            }
     
     
      else {
