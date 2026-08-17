@@ -1136,9 +1136,22 @@ for (idx, replica) in replica_handles.iter().enumerate() {
     } else if target_offset > 0{
         let mut replica_guard = replicas.lock().unwrap();
 
-        replica_guard.iter_mut().write_all(b"*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n").await.flush()
+        for stream in replica_guard.iter_mut() {
+           stream.write_all(b"*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n").await;
 
-        let ack_count = 0;
+           stream.flush().await; 
+        }
+        tokio::time::timeout(Duration::from_millis(timeout_ms), async move { 
+            let mut ack_count = 0;
+
+            if offset >= target_offset {
+                ack_count += 1
+            } else if ack_count >= num_replicas {
+                break;
+            } else {
+               Value::Integer(ack_count as i64) 
+            }
+         })
 
 
             }
