@@ -165,6 +165,8 @@ async fn main() {
     loop {
         let stream = listener.accept().await;
 
+        let config_clone = Arc::clone(&config);
+
         match stream {
             Ok((stream, _)) => {
                 println!("connection established");
@@ -174,7 +176,7 @@ async fn main() {
                 let offset_client = Arc::clone(&master_repl_offset);
                 
                 tokio::spawn(async move {
-                    handle_conn(stream, db_client, is_replica, replicas_client, false, offset_client).await; // FIX 2: Pass offset_client directly
+                    handle_conn(stream, db_client, is_replica, replicas_client, false, offset_client, config_clone).await; // FIX 2: Pass offset_client directly
                 });
             }
             Err(e) => {
@@ -1233,7 +1235,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
   
 
 
-async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool, master_repl_offset: Arc<Mutex<usize>>) {
+async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>) {
     
    let std_stream = stream.into_std().expect("failed to convert to std stream");
 let std_clone = std_stream.try_clone().expect("failed to clone std stream");
