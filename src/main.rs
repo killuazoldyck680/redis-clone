@@ -1231,22 +1231,35 @@ for (idx, replica) in replica_handles.iter().enumerate() {
         Value::Integer(ack_count as i64)
     }
 }
-    "config get" => {
-        let get_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
-        let match_arg = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-        if match_arg == "dir" {
-            Value::Array(["dir", config.dir])
-        } else if match_arg == "dbfilename" {
-            Value::Array(["dbfilename", config.dbfilename])
+    "config" => {
+        let subcommand = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+            Some(s) => s.to_lowercase(),
+            None => return Value::Error("ERR wrong number of arguments for 'config' command".to_string()),
+        };
+        
+        let param = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+        Some(s) => s.to_lowercase(),
+        None => return Value::Error("ERR wrong number of arguments for 'config' command".to_string()),
+    };
+        if subcommand == "get" {
+        if param == "dir" {
+            Value::Array(vec![
+                Value::BulkString("dir".to_string()),
+                Value::BulkString(config.dir.clone()),
+            ])
+        } else if param == "dbfilename" {
+            Value::Array(vec![
+                Value::BulkString("dbfilename".to_string()),
+                Value::BulkString(config.dbfilename.clone()),
+            ])
         } else {
-            Value::Error("error")
+            Value::Array(vec![])
         }
-
-
-
+    } else {
+        Value::Error("ERR unknown subcommand".to_string())
     }
+}
+    
 
 _ => Value::Error("ERR unknown command".to_string())
 }
@@ -1341,7 +1354,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                             let mut results = Vec::new();
                             for queued_v in command_queue.drain(..) {
                                 let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset)).await;
+                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config)).await;
                                 results.push(res);
                             }
                             Value::Array(results)
@@ -1382,7 +1395,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                     Value::SimpleString("OK".to_string())
                 }
 
-                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset)).await,
+                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config)).await,
             }
         };
 
