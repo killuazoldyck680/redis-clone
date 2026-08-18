@@ -63,15 +63,22 @@ async fn main() {
         }
     }
 
-    if args[i] == "dir" {
-        config.dir == args[i + 1]
+    let config = Arc::new(Config);
+
+
+
+    if i + 1 < args.len() {
+        if args[i] == "--dir" {
+        config.dir = args[i + 1].clone();
         i += 2
-    } else if args[i] == "dbfilename" {
-        config.dbfilename == args[i + 1]
+    } else if args[i] == "--dbfilename" {
+        config.dbfilename = args[i + 1].clone();
         i += 2
-    } else if args[i + 1] > args[i].len() {
-        Err("error")
+    } else {
+        i += 1
     }
+    }
+     
 
     let addr = format!("127.0.0.1:{port}");
     let listener = TcpListener::bind(&addr).await.unwrap();
