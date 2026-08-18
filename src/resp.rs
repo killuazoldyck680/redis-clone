@@ -24,8 +24,8 @@ pub struct RespHandler {
 }
 
 pub struct Config {
-    dir : String,
-    dbfilename: String,
+    pub dir : String,
+    pub dbfilename: String,
 }
 
 pub struct StreamEntry {

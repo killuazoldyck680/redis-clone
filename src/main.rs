@@ -63,21 +63,28 @@ async fn main() {
         }
     }
 
-    let config = Arc::new(Config);
+    let mut  config= Config {
+         dir: String::new(),
+         dbfilename: String::new(),
+    };
 
+    let mut i = 1;
+    while i < args.len() {
+        if i + 1 < args.len() && args[i] == "--dir" {
+            config.dir = args[i + 1].clone();
+            i += 2;
 
-
-    if i + 1 < args.len() {
-        if args[i] == "--dir" {
-        config.dir = args[i + 1].clone();
-        i += 2
-    } else if args[i] == "--dbfilename" {
-        config.dbfilename = args[i + 1].clone();
-        i += 2
-    } else {
-        i += 1
+        } else if i + 1 < args.len() && args[i] == "--dbfilename"{
+            config.dbfilename  = args[i + 1].clone();
+            i += 2;
+        } else {
+            i += 1;
+        }
     }
-    }
+
+    let config = Arc::new(config);
+
+    
      
 
     let addr = format!("127.0.0.1:{port}");
