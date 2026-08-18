@@ -23,6 +23,10 @@ pub struct RespHandler {
     buffer: BytesMut,
 }
 
+pub struct Config {
+    
+}
+
 pub struct StreamEntry {
     pub id: String,
     pub fields: Vec<(String, String)>,
