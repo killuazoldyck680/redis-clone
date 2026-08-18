@@ -100,7 +100,9 @@ async fn main() {
         
         let db_master = Arc::clone(&db); 
         let replicas_master = Arc::clone(&replicas);   
-        let offset_master = Arc::clone(&master_repl_offset); // FIX 1: Clone before spawn
+        let offset_master = Arc::clone(&master_repl_offset);
+        
+        let config_master = Arc::clone(&config); // FIX 1: Clone before spawn
 
         tokio::spawn(async move { 
             if let Ok(stream) = TcpStream::connect(&master_addr).await {
@@ -157,7 +159,7 @@ async fn main() {
 
                 println!("Handshake complete. Starting master replication loop...");
 
-                handle_conn(stream, db_master, true, replicas_master, true, offset_master).await;
+                handle_conn(stream, db_master, true, replicas_master, true, offset_master, config_master).await;
             }
         });
     }
@@ -185,7 +187,7 @@ async fn main() {
         }
     }
 }
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>) -> Value {
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
     
@@ -1228,7 +1230,25 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
         Value::Integer(ack_count as i64)
     }
-}_ => Value::Error("ERR unknown command".to_string())
+}
+    "config get" => {
+        let get_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+        let match_arg = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+        if match_arg == "dir" {
+            Value::Array(["dir", config.dir])
+        } else if match_arg == "dbfilename" {
+            Value::Array(["dbfilename", config.dbfilename])
+        } else {
+            Value::Error("error")
+        }
+
+
+
+    }
+
+_ => Value::Error("ERR unknown command".to_string())
 }
 }
 
