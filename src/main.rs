@@ -15,7 +15,7 @@ use anyhow::Result;
 use resp::Value;
 use tokio::stream;
 
-use crate::resp::StreamEntry;
+use crate::resp::{Config, StreamEntry};
 
 mod resp;
 
@@ -37,6 +37,9 @@ type ReplicaList = Arc<std::sync::Mutex<Vec<Arc<std::sync::Mutex<TcpStream>>>>>;
 
 #[tokio::main]
 async fn main() {
+
+
+
     let mut port = "6379".to_string();
     let args: Vec<String> = std::env::args().collect();
 
@@ -58,6 +61,16 @@ async fn main() {
         } else {
             i += 1;
         }
+    }
+
+    if args[i] == "dir" {
+        config.dir == args[i + 1]
+        i += 2
+    } else if args[i] == "dbfilename" {
+        config.dbfilename == args[i + 1]
+        i += 2
+    } else if args[i + 1] > args[i].len() {
+        Err("error")
     }
 
     let addr = format!("127.0.0.1:{port}");
