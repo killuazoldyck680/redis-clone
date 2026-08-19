@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::env::args;
 use std::fmt::format;
+use std::fs::File;
+use std::io::{BufReader, Read};
 use std::path::Path;
 use std::sync::{Arc,Mutex};
 use std::time::{Duration, Instant};
@@ -85,11 +87,19 @@ async fn main() {
 
     let config = Arc::new(config);
 
-    fn load_rdb_file(config: Config, db: Arc<Mutex<HashMap<String, DbValue>>>) -> Result<(), Box<dyn std::error::Error>> {
+    fn load_rdb_file(config: &Config, db: Arc<Mutex<HashMap<String, DbValue>>>) -> Result<(), Box<dyn std::error::Error>> {
 let path = Path::new(&config.dir).join(&config.dbfilename);
         if !path.exists() {
             return Ok(());
         }
+
+        let file_open = File::open(path)?;
+
+        let mut reader = BufReader::new(file_open);
+
+        let mut header = [0u8; 9];
+
+        reader.read_exact(&mut header)?;
 
     }
 
