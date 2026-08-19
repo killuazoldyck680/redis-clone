@@ -1259,6 +1259,10 @@ for (idx, replica) in replica_handles.iter().enumerate() {
         Value::Error("ERR unknown subcommand".to_string())
     }
 }
+
+"keys" => {
+    
+}
     
 
 _ => Value::Error("ERR unknown command".to_string())
