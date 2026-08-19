@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::env::args;
 use std::fmt::format;
+use std::path::Path;
 use std::sync::{Arc,Mutex};
 use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -83,6 +84,14 @@ async fn main() {
     }
 
     let config = Arc::new(config);
+
+    fn load_rdb_file(config: Config, db: Arc<Mutex<HashMap<String, DbValue>>>) -> Result<(), Box<dyn std::error::Error>> {
+let path = Path::new(&config.dir).join(&config.dbfilename);
+        if !path.exists() {
+            return Ok(());
+        }
+
+    }
 
     
      
@@ -1264,10 +1273,16 @@ for (idx, replica) in replica_handles.iter().enumerate() {
     let keys_args = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
         Some(s) => s,
         None => return Value::Error("ERR wrong number of arguments for 'keys' command".to_string())
-    }
+    };
 
     if keys_args == "*" {
-        let db_lock = db.lock().unwrap()
+        let db_lock = db.lock().unwrap();
+
+        let key_list = db_lock.keys().map(|k| Value::BulkString(k.clone())).collect();
+
+        Value::Array(key_list)
+    } else {
+        Value::Array(vec![])
     }
 }
     
