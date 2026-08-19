@@ -1261,7 +1261,10 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 }
 
 "keys" => {
-    
+    let keys_args = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+        Some(s) => s.to_lowercase(),
+        None => Value::Error("error")
+    }
 }
     
 
