@@ -101,6 +101,12 @@ let path = Path::new(&config.dir).join(&config.dbfilename);
 
         reader.read_exact(&mut header)?;
 
+        if &header[0..5] == b"REDIS" {
+
+        } else {
+           return Err("Invalid RDB magic header".into()); 
+        }
+        Ok(())
     }
 
     
