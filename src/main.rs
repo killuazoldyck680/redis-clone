@@ -90,7 +90,7 @@ async fn main() {
     fn load_rdb_file(config: &Config, db: Arc<Mutex<HashMap<String, DbValue>>>) -> Result<(), Box<dyn std::error::Error>> {
 let path = Path::new(&config.dir).join(&config.dbfilename);
         if !path.exists() {
-            return Ok(()); mm
+            return Ok(()); 
         }
 
         let file_open = File::open(path)?;
