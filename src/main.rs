@@ -109,12 +109,22 @@ let path = Path::new(&config.dir).join(&config.dbfilename);
         Ok(())
     }
 
-    fn read_len(&mut reader) {
+    fn read_len(&mut reader: &mut BufReader<File>) -> Result<(usize, bool), Box<dyn std::error::Error>> {
+        let mut buf = [0u8; 1];
+        reader.read_exact(&mut buf)?;
+        let byte = buf[0];
 
+        let mode = byte >> 6;
+        let val = (byte & 0x3F) as usize;
+
+        let is_flag = mode != 0;
+        Ok((val, is_flag))
     }
 
-    fn read_string(&mut reader) {
-        
+    fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::error::Error>>{
+        let (len, is_encoded) = read_len(reader)?;
+
+        if !is_encoded
     }
 
     
