@@ -106,6 +106,20 @@ let path = Path::new(&config.dir).join(&config.dbfilename);
         } else {
            return Err("Invalid RDB magic header".into()); 
         }
+        loop {
+            let mut opcode = [0u8; 1];
+            if reader.read_exact(&mut opcode).is_err() {
+                break;
+            }
+
+            match opcode[0] {
+               0xFA => {
+                let _name = read_string(&mut reader)?;
+                let _val = read_string(&mut reader)?;
+               } 
+            }
+        }
+
         Ok(())
     }
 
