@@ -18,6 +18,7 @@ use anyhow::Result;
 use resp::Value;
 use tokio::stream;
 
+use crate::DataType::String;
 use crate::resp::{Config, StreamEntry};
 
 mod resp;
@@ -117,6 +118,59 @@ let path = Path::new(&config.dir).join(&config.dbfilename);
                 let _name = read_string(&mut reader)?;
                 let _val = read_string(&mut reader)?;
                } 
+
+               0xFE => {
+                let _db_num = read_len(&mut reader)?;
+               }
+
+               0xFB => {
+                let _keys_count = read_len(&mut reader)?;
+                let _expires_count = read_len(&mut reader)?;
+               }
+
+               0xFC => {
+                let mut ms_buf = [0u8; 8];
+                reader.read_exact(& mut ms_buf)?;
+
+                let mut val_type = [0u8; 1];
+                reader.read_exact(&mut val_type)?;
+
+                let key = read_string(&mut reader)?;
+
+                let val = read_string(&mut reader)?;
+
+                db.lock().unwrap().insert(key, DbValue { value: val, expires_at: None, version: 0 })
+               }
+
+               0xFD => {
+                let mut s_buf = [0u8; 4];
+                reader.read_exact(&mut s_buf)?;
+
+                let mut val_type = [0u8;1];
+                reader.read_exact(&mut val_type)?;
+
+                let key = read_string(&mut reader)?;
+
+                let val = read_string(&mut reader)?;
+
+                db.lock().unwrap().insert(key, DbValue { value: val, expires_at: None, version: 0 })
+
+               }
+
+               0x00..=0x0E => {
+                let key = read_string(&mut reader);
+
+                let val = read_string(&mut reader)?;
+
+                db.lock().unwrap().insert(key, DbValue { value: val, expires_at: None, version: 0 })
+               }
+               0xFF => {
+                break;
+               }
+
+               _ => {
+
+               }
             }
         }
 
