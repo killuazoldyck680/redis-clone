@@ -109,7 +109,7 @@ let path = Path::new(&config.dir).join(&config.dbfilename);
         Ok(())
     }
 
-    fn read_len(&mut reader: &mut BufReader<File>) -> Result<(usize, bool), Box<dyn std::error::Error>> {
+    fn read_len(&mut reader:  BufReader<File>) -> Result<(usize, bool), Box<dyn std::error::Error>> {
         let mut buf = [0u8; 1];
         reader.read_exact(&mut buf)?;
         let byte = buf[0];
@@ -117,8 +117,23 @@ let path = Path::new(&config.dir).join(&config.dbfilename);
         let mode = byte >> 6;
         let val = (byte & 0x3F) as usize;
 
-        let is_flag = mode != 0;
-        Ok((val, is_flag))
+        match mode {
+            0b00 => Ok((val, false)),
+            0b01 => {
+                let mut next_buf = [0u8; 1];
+                reader.read_exact(&mut next_buf)?;
+                let length = (val << 8) | (next_buf[0] as usize);
+                Ok((length, false))
+            }
+            0b10 => {
+            let mut next_buf = [0u8; 4];
+            reader.read_exact(&mut next_buf)?;
+            let length = u32::from_be_bytes(next_buf) as usize;
+            Ok((length, false))
+        }
+        0b11 => Ok((val, true)),
+        _ => unreachable!(),
+        }
     }
 
     fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::error::Error>>{
