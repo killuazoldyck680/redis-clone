@@ -90,7 +90,7 @@ async fn main() {
     fn load_rdb_file(config: &Config, db: Arc<Mutex<HashMap<String, DbValue>>>) -> Result<(), Box<dyn std::error::Error>> {
 let path = Path::new(&config.dir).join(&config.dbfilename);
         if !path.exists() {
-            return Ok(()); ll
+            return Ok(()); 
         }
 
         let file_open = File::open(path)?;
@@ -107,6 +107,14 @@ let path = Path::new(&config.dir).join(&config.dbfilename);
            return Err("Invalid RDB magic header".into()); 
         }
         Ok(())
+    }
+
+    fn read_len(&mut reader) {
+
+    }
+
+    fn read_string(&mut reader) {
+        
     }
 
     
