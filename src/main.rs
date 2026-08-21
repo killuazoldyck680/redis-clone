@@ -124,7 +124,35 @@ let path = Path::new(&config.dir).join(&config.dbfilename);
     fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::error::Error>>{
         let (len, is_encoded) = read_len(reader)?;
 
-        if !is_encoded
+        if !is_encoded {
+            let mut buf = vec![0u8; len];
+
+            reader.read_exact(&mut buf)?;
+            let s = String::from_utf8(buf)?;
+            Ok(s)
+        } else {
+           match len {
+            0 => {
+                let mut buf = [0u8; 1];
+                reader.read_exact(&mut buf)?;
+                let val = u8::from_le_bytes(buf);
+                Ok(val.to_string())
+            }
+            1 => {
+               let mut buf = [0u8; 2];
+                reader.read_exact(&mut buf)?;
+                let val = u16::from_le_bytes(buf);
+                Ok(val.to_string()) 
+            }
+            2 => {
+               let mut buf = [0u8; 4];
+                reader.read_exact(&mut buf)?;
+                let val = u32::from_le_bytes(buf);
+                Ok(val.to_string()) 
+            }
+            _ => Err("Unsupported integer encoding format".into()),
+           } 
+        }
     }
 
     
