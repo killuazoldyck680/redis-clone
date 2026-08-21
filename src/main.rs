@@ -90,10 +90,12 @@ async fn main() {
 
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
-    
+    println!("Loading RDB from dir: '{}', file: '{}'", config.dir, config.dbfilename);
     if let Err(e) = load_rdb_file(&config, Arc::clone(&db)) {
         eprintln!("Error loading RDB file: {}", e);
     }
+
+    println!("Loaded keys count: {}", db.lock().unwrap().len());
 
     fn load_rdb_file(config: &Config, db: Db) -> Result<(), Box<dyn std::error::Error>> {
     let path = Path::new(&config.dir).join(&config.dbfilename);
@@ -130,54 +132,60 @@ async fn main() {
                 let _expires_count = read_len(&mut reader)?;
             }
             0xFC => {
-    let mut ms_buf = [0u8; 8];
-    reader.read_exact(&mut ms_buf)?;
-    let timestamp = u64::from_le_bytes(ms_buf);
+                let mut ms_buf = [0u8; 8];
+                reader.read_exact(&mut ms_buf)?;
+                let timestamp = u64::from_le_bytes(ms_buf);
 
-    let mut val_type = [0u8; 1];
-    reader.read_exact(&mut val_type)?;
+                let mut val_type = [0u8; 1];
+                reader.read_exact(&mut val_type)?;
 
-    let key = read_string(&mut reader)?;
-    let val = read_string(&mut reader)?;
+                let key = read_string(&mut reader)?;
+                let val = match val_type[0] {
+                    0x00 => read_string(&mut reader)?,
+                    _ => continue, // Skip unsupported value types safely
+                };
 
-    let target_time = SystemTime::UNIX_EPOCH + Duration::from_millis(timestamp);
-    let expires_at = target_time
-        .duration_since(SystemTime::now())
-        .ok()
-        .map(|dur| Instant::now() + dur);
+                let target_time = SystemTime::UNIX_EPOCH + Duration::from_millis(timestamp);
+                let expires_at = target_time
+                    .duration_since(SystemTime::now())
+                    .ok()
+                    .map(|dur| Instant::now() + dur);
 
-    if expires_at.is_some() {
-        db.lock().unwrap().insert(
-            key, 
-            DbValue { value: DataType::Str(val), expires_at, version: 0 }
-        );
-    }
-}
-0xFD => {
-    let mut s_buf = [0u8; 4];
-    reader.read_exact(&mut s_buf)?;
-    let timestamp = u32::from_le_bytes(s_buf) as u64;
+                if expires_at.is_some() {
+                    db.lock().unwrap().insert(
+                        key, 
+                        DbValue { value: DataType::Str(val), expires_at, version: 0 }
+                    );
+                }
+            }
+            0xFD => {
+                let mut s_buf = [0u8; 4];
+                reader.read_exact(&mut s_buf)?;
+                let timestamp = u32::from_le_bytes(s_buf) as u64;
 
-    let mut val_type = [0u8; 1];
-    reader.read_exact(&mut val_type)?;
+                let mut val_type = [0u8; 1];
+                reader.read_exact(&mut val_type)?;
 
-    let key = read_string(&mut reader)?;
-    let val = read_string(&mut reader)?;
+                let key = read_string(&mut reader)?;
+                let val = match val_type[0] {
+                    0x00 => read_string(&mut reader)?,
+                    _ => continue,
+                };
 
-    let target_time = SystemTime::UNIX_EPOCH + Duration::from_secs(timestamp);
-    let expires_at = target_time
-        .duration_since(SystemTime::now())
-        .ok()
-        .map(|dur| Instant::now() + dur);
+                let target_time = SystemTime::UNIX_EPOCH + Duration::from_secs(timestamp);
+                let expires_at = target_time
+                    .duration_since(SystemTime::now())
+                    .ok()
+                    .map(|dur| Instant::now() + dur);
 
-    if expires_at.is_some() {
-        db.lock().unwrap().insert(
-            key, 
-            DbValue { value: DataType::Str(val), expires_at, version: 0 }
-        );
-    }
-}0x00 => {
-                // Type 0x00 is String value without expiration
+                if expires_at.is_some() {
+                    db.lock().unwrap().insert(
+                        key, 
+                        DbValue { value: DataType::Str(val), expires_at, version: 0 }
+                    );
+                }
+            }
+            0x00 => {
                 let key = read_string(&mut reader)?;
                 let val = read_string(&mut reader)?;
 
@@ -186,7 +194,7 @@ async fn main() {
                     DbValue { value: DataType::Str(val), expires_at: None, version: 0 }
                 );
             }
-            0xFF => break, // End of RDB file
+            0xFF => break, // EOF
             _ => {}
         }
     }
@@ -194,23 +202,23 @@ async fn main() {
     Ok(())
 }
 
-    fn read_len( reader:  &mut BufReader<File>) -> Result<(usize, bool), Box<dyn std::error::Error>> {
-        let mut buf = [0u8; 1];
-        reader.read_exact(&mut buf)?;
-        let byte = buf[0];
+fn read_len(reader: &mut BufReader<File>) -> Result<(usize, bool), Box<dyn std::error::Error>> {
+    let mut buf = [0u8; 1];
+    reader.read_exact(&mut buf)?;
+    let byte = buf[0];
 
-        let mode = byte >> 6;
-        let val = (byte & 0x3F) as usize;
+    let mode = byte >> 6;
+    let val = (byte & 0x3F) as usize;
 
-        match mode {
-            0b00 => Ok((val, false)),
-            0b01 => {
-                let mut next_buf = [0u8; 1];
-                reader.read_exact(&mut next_buf)?;
-                let length = (val << 8) | (next_buf[0] as usize);
-                Ok((length, false))
-            }
-            0b10 => {
+    match mode {
+        0b00 => Ok((val, false)),
+        0b01 => {
+            let mut next_buf = [0u8; 1];
+            reader.read_exact(&mut next_buf)?;
+            let length = (val << 8) | (next_buf[0] as usize);
+            Ok((length, false))
+        }
+        0b10 => {
             let mut next_buf = [0u8; 4];
             reader.read_exact(&mut next_buf)?;
             let length = u32::from_be_bytes(next_buf) as usize;
@@ -218,20 +226,19 @@ async fn main() {
         }
         0b11 => Ok((val, true)),
         _ => unreachable!(),
-        }
     }
+}
 
-    fn read_string(reader: &mut BufReader<File>) -> Result<std::string::String, Box<dyn std::error::Error>>{
-        let (len, is_encoded) = read_len(reader)?;
+fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::error::Error>> {
+    let (len, is_encoded) = read_len(reader)?;
 
-        if !is_encoded {
-            let mut buf = vec![0u8; len];
-
-            reader.read_exact(&mut buf)?;
-            let s = String::from_utf8(buf)?;
-            Ok(s)
-        } else {
-           match len {
+    if !is_encoded {
+        let mut buf = vec![0u8; len];
+        reader.read_exact(&mut buf)?;
+        let s = String::from_utf8(buf)?;
+        Ok(s)
+    } else {
+        match len {
             0 => {
                 let mut buf = [0u8; 1];
                 reader.read_exact(&mut buf)?;
@@ -239,21 +246,21 @@ async fn main() {
                 Ok(val.to_string())
             }
             1 => {
-               let mut buf = [0u8; 2];
+                let mut buf = [0u8; 2];
                 reader.read_exact(&mut buf)?;
                 let val = u16::from_le_bytes(buf);
                 Ok(val.to_string()) 
             }
             2 => {
-               let mut buf = [0u8; 4];
+                let mut buf = [0u8; 4];
                 reader.read_exact(&mut buf)?;
                 let val = u32::from_le_bytes(buf);
                 Ok(val.to_string()) 
             }
             _ => Err("Unsupported integer encoding format".into()),
-           } 
-        }
+        } 
     }
+}
 
     
      
@@ -262,7 +269,7 @@ async fn main() {
     let listener = TcpListener::bind(&addr).await.unwrap();
 
     let replicas: ReplicaList = Arc::new(Mutex::new(Vec::new()));
-    let db: Db = Arc::new(Mutex::new(HashMap::new()));
+    
     let master_repl_offset = Arc::new(Mutex::new(0usize));
 
     if let Some((master_host, master_port)) = replica_info {
@@ -1434,13 +1441,30 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 "keys" => {
     let keys_args = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
         Some(s) => s,
-        None => return Value::Error("ERR wrong number of arguments for 'keys' command".to_string())
+        None => return Value::Error("ERR wrong number of arguments for 'keys' command".to_string()),
     };
+
+    println!("KEYS pattern received: {:?}", keys_args);
 
     if keys_args == "*" {
         let db_lock = db.lock().unwrap();
 
-        let key_list = db_lock.keys().map(|k| Value::BulkString(k.clone())).collect();
+        // 1. DEBUG PRINT: Print raw keys in HashMap right now
+        println!("RAW DB KEYS IN HASHMAP: {:?}", db_lock.keys().collect::<Vec<_>>());
+
+        let now = std::time::Instant::now();
+        let key_list: Vec<Value> = db_lock
+            .iter()
+            .filter(|(_, db_val)| {
+                match db_val.expires_at {
+                    Some(expiry) => expiry > now, // Filter out expired keys
+                    None => true,                  // Keep non-expiring keys
+                }
+            })
+            .map(|(k, _)| Value::BulkString(k.clone()))
+            .collect();
+
+        println!("KEYS COUNT RETURNING: {}", key_list.len());
 
         Value::Array(key_list)
     } else {
