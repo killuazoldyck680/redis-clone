@@ -7,7 +7,7 @@ use std::path::Path;
 use std::sync::{Arc,Mutex};
 use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{env, result, usize, vec};
+use std::{env, result, string, usize, vec};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::OwnedWriteHalf;
@@ -18,13 +18,13 @@ use anyhow::Result;
 use resp::Value;
 use tokio::stream;
 
-use crate::DataType::String;
+use crate::DataType::Str;
 use crate::resp::{Config, StreamEntry};
 
 mod resp;
 
 enum DataType {
-    String(String),
+    Str(String),
     List(Vec<String>),
     Stream(Vec<StreamEntry>),
 }
@@ -88,96 +88,113 @@ async fn main() {
 
     let config = Arc::new(config);
 
-    fn load_rdb_file(config: &Config, db: Arc<Mutex<HashMap<String, DbValue>>>) -> Result<(), Box<dyn std::error::Error>> {
-let path = Path::new(&config.dir).join(&config.dbfilename);
-        if !path.exists() {
-            return Ok(()); 
-        }
+    let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
-        let file_open = File::open(path)?;
-
-        let mut reader = BufReader::new(file_open);
-
-        let mut header = [0u8; 9];
-
-        reader.read_exact(&mut header)?;
-
-        if &header[0..5] == b"REDIS" {
-
-        } else {
-           return Err("Invalid RDB magic header".into()); 
-        }
-        loop {
-            let mut opcode = [0u8; 1];
-            if reader.read_exact(&mut opcode).is_err() {
-                break;
-            }
-
-            match opcode[0] {
-               0xFA => {
-                let _name = read_string(&mut reader)?;
-                let _val = read_string(&mut reader)?;
-               } 
-
-               0xFE => {
-                let _db_num = read_len(&mut reader)?;
-               }
-
-               0xFB => {
-                let _keys_count = read_len(&mut reader)?;
-                let _expires_count = read_len(&mut reader)?;
-               }
-
-               0xFC => {
-                let mut ms_buf = [0u8; 8];
-                reader.read_exact(& mut ms_buf)?;
-
-                let mut val_type = [0u8; 1];
-                reader.read_exact(&mut val_type)?;
-
-                let key = read_string(&mut reader)?;
-
-                let val = read_string(&mut reader)?;
-
-                db.lock().unwrap().insert(key, DbValue { value: val, expires_at: None, version: 0 })
-               }
-
-               0xFD => {
-                let mut s_buf = [0u8; 4];
-                reader.read_exact(&mut s_buf)?;
-
-                let mut val_type = [0u8;1];
-                reader.read_exact(&mut val_type)?;
-
-                let key = read_string(&mut reader)?;
-
-                let val = read_string(&mut reader)?;
-
-                db.lock().unwrap().insert(key, DbValue { value: val, expires_at: None, version: 0 })
-
-               }
-
-               0x00..=0x0E => {
-                let key = read_string(&mut reader);
-
-                let val = read_string(&mut reader)?;
-
-                db.lock().unwrap().insert(key, DbValue { value: val, expires_at: None, version: 0 })
-               }
-               0xFF => {
-                break;
-               }
-
-               _ => {
-
-               }
-            }
-        }
-
-        Ok(())
+    
+    if let Err(e) = load_rdb_file(&config, Arc::clone(&db)) {
+        eprintln!("Error loading RDB file: {}", e);
     }
 
-    fn read_len(&mut reader:  BufReader<File>) -> Result<(usize, bool), Box<dyn std::error::Error>> {
+    fn load_rdb_file(config: &Config, db: Db) -> Result<(), Box<dyn std::error::Error>> {
+    let path = Path::new(&config.dir).join(&config.dbfilename);
+    if !path.exists() {
+        return Ok(()); 
+    }
+
+    let file_open = File::open(path)?;
+    let mut reader = BufReader::new(file_open);
+
+    let mut header = [0u8; 9];
+    reader.read_exact(&mut header)?;
+
+    if &header[0..5] != b"REDIS" {
+        return Err("Invalid RDB magic header".into()); 
+    }
+
+    loop {
+        let mut opcode = [0u8; 1];
+        if reader.read_exact(&mut opcode).is_err() {
+            break;
+        }
+
+        match opcode[0] {
+            0xFA => {
+                let _name = read_string(&mut reader)?;
+                let _val = read_string(&mut reader)?;
+            } 
+            0xFE => {
+                let _db_num = read_len(&mut reader)?;
+            }
+            0xFB => {
+                let _keys_count = read_len(&mut reader)?;
+                let _expires_count = read_len(&mut reader)?;
+            }
+            0xFC => {
+    let mut ms_buf = [0u8; 8];
+    reader.read_exact(&mut ms_buf)?;
+    let timestamp = u64::from_le_bytes(ms_buf);
+
+    let mut val_type = [0u8; 1];
+    reader.read_exact(&mut val_type)?;
+
+    let key = read_string(&mut reader)?;
+    let val = read_string(&mut reader)?;
+
+    let target_time = SystemTime::UNIX_EPOCH + Duration::from_millis(timestamp);
+    let expires_at = target_time
+        .duration_since(SystemTime::now())
+        .ok()
+        .map(|dur| Instant::now() + dur);
+
+    if expires_at.is_some() {
+        db.lock().unwrap().insert(
+            key, 
+            DbValue { value: DataType::Str(val), expires_at, version: 0 }
+        );
+    }
+}
+0xFD => {
+    let mut s_buf = [0u8; 4];
+    reader.read_exact(&mut s_buf)?;
+    let timestamp = u32::from_le_bytes(s_buf) as u64;
+
+    let mut val_type = [0u8; 1];
+    reader.read_exact(&mut val_type)?;
+
+    let key = read_string(&mut reader)?;
+    let val = read_string(&mut reader)?;
+
+    let target_time = SystemTime::UNIX_EPOCH + Duration::from_secs(timestamp);
+    let expires_at = target_time
+        .duration_since(SystemTime::now())
+        .ok()
+        .map(|dur| Instant::now() + dur);
+
+    if expires_at.is_some() {
+        db.lock().unwrap().insert(
+            key, 
+            DbValue { value: DataType::Str(val), expires_at, version: 0 }
+        );
+    }
+}0x00 => {
+                // Type 0x00 is String value without expiration
+                let key = read_string(&mut reader)?;
+                let val = read_string(&mut reader)?;
+
+                db.lock().unwrap().insert(
+                    key, 
+                    DbValue { value: DataType::Str(val), expires_at: None, version: 0 }
+                );
+            }
+            0xFF => break, // End of RDB file
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+    fn read_len( reader:  &mut BufReader<File>) -> Result<(usize, bool), Box<dyn std::error::Error>> {
         let mut buf = [0u8; 1];
         reader.read_exact(&mut buf)?;
         let byte = buf[0];
@@ -204,7 +221,7 @@ let path = Path::new(&config.dir).join(&config.dbfilename);
         }
     }
 
-    fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::error::Error>>{
+    fn read_string(reader: &mut BufReader<File>) -> Result<std::string::String, Box<dyn std::error::Error>>{
         let (len, is_encoded) = read_len(reader)?;
 
         if !is_encoded {
@@ -392,11 +409,11 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
         db_lock.insert(
             key.clone(),
             DbValue {
-                value: DataType::String(val.clone()),
+                value: DataType::Str(val.clone()),
                 expires_at,
                 version: new_version,
             },
-        );
+        ); 
     } 
 
     // --- PROPAGATION TO REPLICAS ---
@@ -455,7 +472,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
                         // 3. Otherwise, fetch it normally
                         match db_lock.get(&key) {
                             Some(db_val) => match &db_val.value {
-                                DataType::String(s) => Value::BulkString(s.clone()),
+                                DataType::Str(s) => Value::BulkString(s.clone()),
                                 _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
                             },
                             None => Value::NullBulkString,
@@ -481,7 +498,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
                                 existing_list.extend(new_elements);
                                 existing_list.len()
                             }
-                            DataType::String(_) => {
+                            DataType::Str(_) => {
                                 panic!(
                                     "WRONGTYPE Operation against a key holding the wrong kind of value"
                                 );
@@ -593,7 +610,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
                                 existing_list.len()
                             }
 
-                            DataType::String(_) => {
+                            DataType::Str(_) => {
                                 panic!("error");
                             }
 
@@ -778,7 +795,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
                                     Value::SimpleString("none".to_string())
                                 } else {
                                     match &db_val.value {
-                                        DataType::String(_) => {
+                                        DataType::Str(_) => {
                                             Value::SimpleString("string".to_string())
                                         }
                                         DataType::List(_) => {
@@ -791,7 +808,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
                                 }
                             } else {
                                 match &db_val.value {
-                                    DataType::String(_) => {
+                                    DataType::Str(_) => {
                                         Value::SimpleString("string".to_string())
                                     }
                                     DataType::List(_) => Value::SimpleString("list".to_string()),
@@ -1191,11 +1208,11 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
            match db_lock.get_mut(&arg)  {
             Some(db_val) => {
-                if let DataType::String(ref current_str) = db_val.value {
+                if let DataType::Str(ref current_str) = db_val.value {
                     match current_str.parse::<i64>() {
                         Ok(mut num) => {
                             num += 1;
-                            db_val.value = DataType::String(num.to_string());
+                            db_val.value = DataType::Str(num.to_string());
 
                             Value::Integer(num)
                         }
@@ -1214,7 +1231,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
             }
 
             None => {
-                  db_lock.insert(arg, DbValue { value: DataType::String("1".to_string()), expires_at: None, version: 0 });
+                  db_lock.insert(arg, DbValue { value: DataType::Str("1".to_string()), expires_at: None, version: 0 });
 
                 Value::Integer(1)
             }
