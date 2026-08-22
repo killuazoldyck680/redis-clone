@@ -26,6 +26,10 @@ pub struct RespHandler {
 pub struct Config {
     pub dir : String,
     pub dbfilename: String,
+    pub appendonly: String,
+    pub appenddirname: String,
+    pub appendfsync: String,
+    pub appendfsync: String,
 }
 
 pub struct StreamEntry {
