@@ -29,7 +29,21 @@ pub struct Config {
     pub appendonly: String,
     pub appenddirname: String,
     pub appendfsync: String,
-    pub appendfsync: String,
+    pub appendfilename : String,
+    
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+        dir : std::env::current_dir().unwrap().to_string_lossy().to_string(),
+        dbfilename : String::from("dump.rdb"),
+        appendonly : String::from("no"),
+        appenddirname : String::from("appendonlydir"),
+        appendfsync:  String::from("everysec"),
+        appendfilename: String::from("appendonly.aof"),
+        }
+    }
 }
 
 pub struct StreamEntry {
