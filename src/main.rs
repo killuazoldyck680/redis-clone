@@ -51,6 +51,22 @@ async fn main() {
     let mut i = 1;
     let mut replica_info: Option<(String, String)> = None;
 
+    let mut  config= Config {
+         dir: String::new(),
+         dbfilename: String::new(),
+         appendonly : String::new(),
+        appenddirname : String::new(),
+        appendfsync:  String::new(),
+        appendfilename: String::new(),
+        
+    };
+
+    
+    let config = Arc::new(config);
+
+    let db: Db = Arc::new(Mutex::new(HashMap::new()));
+
+
     while i < args.len() {
         if args[i] == "--port" && i + 1 < args.len() {
             port = args[i + 1].clone();
@@ -62,34 +78,33 @@ async fn main() {
                 replica_info = Some((parts[0].to_string(), parts[1].to_string()));
             }
             i += 2;
-        } else {
+        } else if args[i] == "--dir" && i + 1 < args.len() {
+        config.dir = args[i + 1].clone();
+        i += 2;
+    } else if args[i] == "--dbfilename" && i + 1 < args.len() {
+        config.dbfilename = args[i + 1].clone();
+        i += 2;
+    } else if args[i] == "--appendonly" && i + 1 < args.len() {
+        config.appendonly = args[i + 1].clone();
+        i += 2;
+    } else if args[i] == "--appenddirname" && i + 1 < args.len() {
+        config.appenddirname = args[i + 1].clone();
+        i += 2;
+    } else if args[i] == "--appendfilename" && i + 1 < args.len() {
+        config.appendfilename = args[i + 1].clone();
+        i += 2;
+    } else if args[i] == "--appendfsync" && i + 1 < args.len() {
+        config.appendfsync = args[i + 1].clone();
+        i += 2;
+    }
+        
+        
+         else {
             i += 1;
         }
     }
 
-    let mut  config= Config {
-         dir: String::new(),
-         dbfilename: String::new(),
-    };
-
-    let mut i = 1;
-    while i < args.len() {
-        if i + 1 < args.len() && args[i] == "--dir" {
-            config.dir = args[i + 1].clone();
-            i += 2;
-
-        } else if i + 1 < args.len() && args[i] == "--dbfilename"{
-            config.dbfilename  = args[i + 1].clone();
-            i += 2;
-        } else {
-            i += 1;
-        }
-    }
-
-    let config = Arc::new(config);
-
-    let db: Db = Arc::new(Mutex::new(HashMap::new()));
-
+    
     println!("Loading RDB from dir: '{}', file: '{}'", config.dir, config.dbfilename);
     if let Err(e) = load_rdb_file(&config, Arc::clone(&db)) {
         eprintln!("Error loading RDB file: {}", e);
