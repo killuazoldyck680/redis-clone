@@ -1437,23 +1437,47 @@ for (idx, replica) in replica_handles.iter().enumerate() {
         None => return Value::Error("ERR wrong number of arguments for 'config' command".to_string()),
     };
         if subcommand == "get" {
-        if param == "dir" {
-            Value::Array(vec![
+        match param.as_str() {
+          "dir" =>  Value::Array(vec![
                 Value::BulkString("dir".to_string()),
                 Value::BulkString(config.dir.clone()),
-            ])
-        } else if param == "dbfilename" {
-            Value::Array(vec![
+            ]),
+
+            "dbfilename" =>  Value::Array(vec![
                 Value::BulkString("dbfilename".to_string()),
                 Value::BulkString(config.dbfilename.clone()),
-            ])
-        } else {
-            Value::Array(vec![])
-        }
-    } else {
-        Value::Error("ERR unknown subcommand".to_string())
-    }
+            ]),
+
+            "appendonly" => Value::Array(vec![
+                Value::BulkString("appendonly".to_string()),
+                Value::BulkString(config.appendonly.clone()),
+            ]),
+
+            "appenddirname" => Value::Array(vec![
+                Value::BulkString("appenddirname".to_string()),
+                Value::BulkString(config.appenddirname.clone()),
+            ]),
+
+            "appendfilename" => Value::Array(vec![
+                Value::BulkString("appendfilename".to_string()),
+                Value::BulkString(config.appendfilename.clone()),
+            ]),
+            "appendfsync" => Value::Array(vec![
+                Value::BulkString("appendfsync".to_string()),
+                Value::BulkString(config.appendfsync.clone()),
+            ]),
+
+            _ => Value::Array(vec![]),
+
+
+
+        } 
+        
+        
+} else {
+    Value::Error("ERR unknown subcommand".to_string())
 }
+    }
 
 "keys" => {
     let keys_args = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
