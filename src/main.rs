@@ -62,9 +62,9 @@ async fn main() {
     };
 
     
-    let config = Arc::new(config);
+    let mut config = Config::default();
 
-    let db: Db = Arc::new(Mutex::new(HashMap::new()));
+    
 
 
     while i < args.len() {
@@ -104,7 +104,9 @@ async fn main() {
         }
     }
 
-    
+    let config = Arc::new(config);
+
+    let db: Db = Arc::new(Mutex::new(HashMap::new()));
     println!("Loading RDB from dir: '{}', file: '{}'", config.dir, config.dbfilename);
     if let Err(e) = load_rdb_file(&config, Arc::clone(&db)) {
         eprintln!("Error loading RDB file: {}", e);
