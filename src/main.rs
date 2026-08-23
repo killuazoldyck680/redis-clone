@@ -123,7 +123,13 @@ async fn main() {
 
         let  manifest_name = format!("{}.manifest", config.appendfilename);
 
-        let manifest_path = path.join(manifest_name)
+        let manifest_path = path.join(manifest_name);
+
+        let manifest_content = format!("file {}.1.incr.aof seq 1 type i\n", config.appendfilename);
+
+        if let Err(e) = std::fs::write(&manifest_path, manifest_content) {
+            eprintln!("Error {}",e)
+        }
 
 
     }
