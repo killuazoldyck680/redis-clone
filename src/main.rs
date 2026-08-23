@@ -86,6 +86,8 @@ async fn main() {
         i += 2;
     } else if args[i] == "--appendonly" && i + 1 < args.len() {
         config.appendonly = args[i + 1].clone();
+
+
         i += 2;
     } else if args[i] == "--appenddirname" && i + 1 < args.len() {
         config.appenddirname = args[i + 1].clone();
@@ -102,6 +104,15 @@ async fn main() {
          else {
             i += 1;
         }
+    }
+
+    if config.appendonly.to_lowercase() == "yes" {
+        let path = std::path::Path::new(&config.dir).join(&config.appenddirname);
+
+        let dir = std::fs::create_dir_all(path);
+
+        
+
     }
 
     let config = Arc::new(config);
