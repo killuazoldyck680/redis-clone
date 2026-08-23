@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::env::args;
 use std::fmt::format;
-use std::fs::File;
+use std::fs::{File, create_dir};
 use std::io::{BufReader, Read};
 use std::path::Path;
 use std::sync::{Arc,Mutex};
@@ -109,9 +109,10 @@ async fn main() {
     if config.appendonly.to_lowercase() == "yes" {
         let path = std::path::Path::new(&config.dir).join(&config.appenddirname);
 
-        let dir = std::fs::create_dir_all(path);
+        if let Err(e) = std::fs::create_dir_all(path) {
+            eprintln!("Error {}",e)
+        }
 
-        
 
     }
 
