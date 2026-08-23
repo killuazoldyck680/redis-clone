@@ -107,10 +107,18 @@ async fn main() {
     }
 
     if config.appendonly.to_lowercase() == "yes" {
-        let path = std::path::Path::new(&config.dir).join(format!("{}.1.incr.aof", config.appendfilename));
+        let path = std::path::Path::new(&config.dir).join(&config.appenddirname);
 
-        if let Err(e) = std::fs::create_dir_all(path) {
+        if let Err(e) = std::fs::create_dir_all(&path) {
             eprintln!("Error {}",e)
+        }
+
+        let file_name = format!("{}.1.incr.aof", config.appendfilename);
+
+        let file_path = path.join(file_name);
+
+        if let Err(e) =  std::fs::File::create(file_path){
+            eprintln!("Error {}", e)
         }
 
 
