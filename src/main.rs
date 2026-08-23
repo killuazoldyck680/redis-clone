@@ -107,7 +107,7 @@ async fn main() {
     }
 
     if config.appendonly.to_lowercase() == "yes" {
-        let path = std::path::Path::new(&config.dir).join(&config.appenddirname);
+        let path = std::path::Path::new(&config.dir).join(format!("{}.1.incr.aof", config.appendfilename));
 
         if let Err(e) = std::fs::create_dir_all(path) {
             eprintln!("Error {}",e)
