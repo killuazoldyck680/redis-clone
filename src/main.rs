@@ -121,6 +121,10 @@ async fn main() {
             eprintln!("Error {}", e)
         }
 
+        let  manifest_name = format!("{}.manifest", config.appendfilename);
+
+        let manifest_path = path.join(manifest_name)
+
 
     }
 
