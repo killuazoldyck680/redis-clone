@@ -118,16 +118,16 @@ async fn main() {
             eprintln!("Error {}",e)
         }
 
-        let file_name = format!("{}.1.incr.aof", config.appendfilename);
-
+        let base_name = config.appendfilename.trim_end_matches(".aof");
+let file_name = format!("{base_name}.1.incr.aof");
+let manifest_name = format!("{base_name}.manifest");
         let file_path = path.join(file_name);
 
         if let Err(e) =  std::fs::File::create(file_path){
             eprintln!("Error {}", e)
         }
 
-        let  manifest_name = format!("{}.manifest", config.appendfilename);
-
+       
         let manifest_path = path.join(manifest_name);
 
         let manifest_content = format!("file {}.1.incr.aof seq 1 type i\n", config.appendfilename);
@@ -162,6 +162,7 @@ async fn main() {
 
     
     let active_aof_path : Arc<Option<PathBuf>> = Arc::new(target_path);
+    println!("Active AOF Path resolved to: {:?}", active_aof_path);
 
     
     let config = Arc::new(config);
