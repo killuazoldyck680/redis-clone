@@ -135,8 +135,14 @@ async fn main() {
 
         let read_file = std::fs::read_to_string(manifest_path);
 
+        let mut target_path = None;
+
         if let Ok(content) = read_file {
-            let target_file = content.lines().find(|line| line.contains("type i").and_then(|line| line.split_whitespace().nth(1));
+            let target_file = content.lines().find(|line| line.contains("type i")).and_then(|line| line.split_whitespace().nth(1));
+
+            if let Some(filename) = target_file {
+                target_path = Some(path.join(filename));
+            }
 
 
 
