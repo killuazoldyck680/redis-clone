@@ -131,6 +131,8 @@ async fn main() {
             eprintln!("Error {}",e)
         }
 
+        let manifest_file = std::path::Path::new(&config.dir).join(&config.appenddirname).join(format!("{}.manifest", config.appendfilename));
+
 
     }
 
