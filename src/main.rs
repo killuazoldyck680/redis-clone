@@ -357,7 +357,9 @@ fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::erro
         let replicas_master = Arc::clone(&replicas);   
         let offset_master = Arc::clone(&master_repl_offset);
         
-        let config_master = Arc::clone(&config); // FIX 1: Clone before spawn
+        let config_master = Arc::clone(&config);
+        
+        let aof_master = Arc::clone(&active_aof_path); // FIX 1: Clone before spawn
 
         tokio::spawn(async move { 
             if let Ok(stream) = TcpStream::connect(&master_addr).await {
@@ -414,7 +416,7 @@ fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::erro
 
                 println!("Handshake complete. Starting master replication loop...");
 
-                handle_conn(stream, db_master, true, replicas_master, true, offset_master, config_master).await;
+                handle_conn(stream, db_master, true, replicas_master, true, offset_master, config_master,aof_master).await;
             }
         });
     }
@@ -424,6 +426,9 @@ fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::erro
 
         let config_clone = Arc::clone(&config);
 
+        let aof_path_clone = Arc::clone(&active_aof_path);
+
+
         match stream {
             Ok((stream, _)) => {
                 println!("connection established");
@@ -432,8 +437,9 @@ fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::erro
                 let replicas_client = Arc::clone(&replicas);
                 let offset_client = Arc::clone(&master_repl_offset);
                 
+                
                 tokio::spawn(async move {
-                    handle_conn(stream, db_client, is_replica, replicas_client, false, offset_client, config_clone).await; // FIX 2: Pass offset_client directly
+                    handle_conn(stream, db_client, is_replica, replicas_client, false, offset_client, config_clone,aof_path_clone,).await; // FIX 2: Pass offset_client directly
                 });
             }
             Err(e) => {
@@ -530,7 +536,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
 
     if config.appendonly.to_lowercase() == "yes" {
-        if let Some(path) = active_aof_path.as_ref {
+        if let Some(path) = active_aof_path.as_deref() {
             if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(path) {
                 let _ = file.write_all(cmd_bytes.as_bytes());
                 let _ = file.sync_all();
@@ -1595,7 +1601,7 @@ _ => Value::Error("ERR unknown command".to_string())
   
 
 
-async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>) {
+async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>) {
     
    let std_stream = stream.into_std().expect("failed to convert to std stream");
 let std_clone = std_stream.try_clone().expect("failed to clone std stream");
@@ -1681,7 +1687,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                             let mut results = Vec::new();
                             for queued_v in command_queue.drain(..) {
                                 let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config)).await;
+                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config),Arc::clone(&active_aof_path)).await;
                                 results.push(res);
                             }
                             Value::Array(results)
@@ -1722,7 +1728,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                     Value::SimpleString("OK".to_string())
                 }
 
-                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config)).await,
+                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config), Arc::clone(&active_aof_path)).await,
             }
         };
 
