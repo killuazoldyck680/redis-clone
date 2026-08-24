@@ -133,6 +133,12 @@ async fn main() {
 
         let manifest_file = std::path::Path::new(&config.dir).join(&config.appenddirname).join(format!("{}.manifest", config.appendfilename));
 
+        let read_file = std::fs::read_to_string(manifest_path);
+
+        
+
+
+
 
     }
 
