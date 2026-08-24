@@ -3,7 +3,7 @@ use std::env::args;
 use std::fmt::format;
 use std::fs::{File, create_dir};
 use std::io::{BufReader, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc,Mutex};
 use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -39,11 +39,13 @@ type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
 type ReplicaList = Arc<std::sync::Mutex<Vec<Arc<std::sync::Mutex<TcpStream>>>>>;
 
+
+
 #[tokio::main]
 async fn main() {
 
 
-
+    let mut target_path = None;
     let mut port = "6379".to_string();
     let args: Vec<String> = std::env::args().collect();
 
@@ -106,6 +108,9 @@ async fn main() {
         }
     }
 
+    
+
+
     if config.appendonly.to_lowercase() == "yes" {
         let path = std::path::Path::new(&config.dir).join(&config.appenddirname);
 
@@ -135,8 +140,7 @@ async fn main() {
 
         let read_file = std::fs::read_to_string(manifest_path);
 
-        let mut target_path = None;
-
+        
         if let Ok(content) = read_file {
             let target_file = content.lines().find(|line| line.contains("type i")).and_then(|line| line.split_whitespace().nth(1));
 
@@ -156,6 +160,10 @@ async fn main() {
 
     }
 
+    
+    let active_aof_path : Arc<Option<PathBuf>> = Arc::new(target_path);
+
+    
     let config = Arc::new(config);
 
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
@@ -434,7 +442,7 @@ fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::erro
         }
     }
 }
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>) -> Value {
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
     
@@ -445,6 +453,8 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
 "set" => {
     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
     let val = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+    let active_aof_path = Arc::clone(&active_aof_path);
 
     let mut expires_at = None;
     if let (Some(opt), Some(expiry_val)) = (args.get(2), args.get(3)) {
@@ -516,7 +526,19 @@ for (idx, replica) in replica_handles.iter().enumerate() {
         Ok(bytes_written) => println!("--> [Replica {}] Sent {} bytes successfully!", idx, bytes_written),
         Err(e) => println!("--> [Replica {}] try_write FAILED: {:?}", idx, e),
     }
-}    Value::SimpleString("OK".to_string())
+}
+
+
+    if config.appendonly.to_lowercase() == "yes" {
+        if let Some(path) = active_aof_path.as_ref {
+            if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(path) {
+                let _ = file.write_all(cmd_bytes.as_bytes());
+                let _ = file.sync_all();
+            }
+        }
+    }
+
+Value::SimpleString("OK".to_string())
 }                "get" => {
                     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
