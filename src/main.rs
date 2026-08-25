@@ -126,7 +126,7 @@ let manifest_name = format!("{base_name}.manifest");
         if let Err(e) =  std::fs::File::create(file_path){
             eprintln!("Error {}", e)
         }
-ll
+
        
         let manifest_path = path.join(manifest_name);
 
