@@ -128,7 +128,7 @@ let manifest_name = format!("{base_name}.manifest");
         }
 
        
-        let manifest_path = path.join(manifest_name);ll
+        let manifest_path = path.join(manifest_name);
 
         let manifest_content = format!("file {}.1.incr.aof seq 1 type i\n", config.appendfilename);
 
