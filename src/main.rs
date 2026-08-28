@@ -54,7 +54,7 @@ async fn main() {
     let mut replica_info: Option<(String, String)> = None;
 
     let mut  config= Config {
-         dir: String::new(),
+         dir: String::new(),kk
          dbfilename: String::new(),
          appendonly : String::new(),
         appenddirname : String::new(),
