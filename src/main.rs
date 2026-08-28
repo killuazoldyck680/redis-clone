@@ -54,7 +54,7 @@ async fn main() {
     let mut replica_info: Option<(String, String)> = None;
 
     let mut  config= Config {
-         dir: String::new(),kk
+         dir: String::new(),
          dbfilename: String::new(),
          appendonly : String::new(),
         appenddirname : String::new(),
@@ -449,6 +449,13 @@ fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::erro
         }
     }
 }
+
+fn append_to_aof(config: &Config, active_aof_path: &Arc<Option<PathBuf>>, command_args: &[String]) {
+    
+}
+
+
+
 async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
