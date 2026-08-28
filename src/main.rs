@@ -725,6 +725,8 @@ Value::SimpleString("OK".to_string())
 
                     let mut new_elements = Vec::new();
 
+                    let mut aof_cmd = vec!["LPUSH".to_string(), key.clone()];
+
                     for arg in args.into_iter().skip(1) {
                         if let Ok(element_str) = unpack_bulk_str(arg) {
                             new_elements.push(element_str);
@@ -768,6 +770,10 @@ Value::SimpleString("OK".to_string())
                             list_len
                         }
                     };
+
+                    drop(db_lock);
+
+                    append_to_aof(&config, &active_aof_path, &aof_cmd);
 
                     Value::Integer(final_list as i64)
                 }
