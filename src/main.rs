@@ -451,7 +451,9 @@ fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::erro
 }
 
 fn append_to_aof(config: &Config, active_aof_path: &Arc<Option<PathBuf>>, command_args: &[String]) {
-    if config.appendonly.to_lowercase() !== "yes" {
+    use std::io::Write;
+
+    if config.appendonly.to_lowercase() != "yes" {
         return;
     }
 
@@ -558,15 +560,10 @@ for (idx, replica) in replica_handles.iter().enumerate() {
     }
 }
 
+let aof_cmd = vec!["SET".to_string(), key.clone(), val.clone()];
 
-    if config.appendonly.to_lowercase() == "yes" {
-        if let Some(path) = active_aof_path.as_deref() {
-            if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(path) {
-                let _ = file.write_all(cmd_bytes.as_bytes());
-                let _ = file.sync_all();
-            }
-        }
-    }
+append_to_aof(config, &active_aof_path, &aof_cmd);
+    
 
 Value::SimpleString("OK".to_string())
 }                "get" => {
