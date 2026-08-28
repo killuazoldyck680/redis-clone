@@ -451,7 +451,23 @@ fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::erro
 }
 
 fn append_to_aof(config: &Config, active_aof_path: &Arc<Option<PathBuf>>, command_args: &[String]) {
-    
+    if config.appendonly.to_lowercase() !== "yes" {
+        return;
+    }
+
+    if let Some(path) = active_aof_path.as_deref() {
+        let mut resp_bytes = format!("*{}\r\n", command_args.len());
+
+        for arg in command_args {
+            resp_bytes.push_str(&format!("${}\r\n{}\r\n", arg.len(), arg));
+        }
+
+        if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(path) {
+            let _ = file.write_all(resp_bytes.as_bytes());
+
+            let _ = file.sync_all();
+        }
+    }
 }
 
 
