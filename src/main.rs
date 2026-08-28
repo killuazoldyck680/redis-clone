@@ -562,7 +562,7 @@ for (idx, replica) in replica_handles.iter().enumerate() {
 
 let aof_cmd = vec!["SET".to_string(), key.clone(), val.clone()];
 
-append_to_aof(config, &active_aof_path, &aof_cmd);
+append_to_aof(&config, &active_aof_path, &aof_cmd);
     
 
 Value::SimpleString("OK".to_string())
@@ -609,9 +609,12 @@ Value::SimpleString("OK".to_string())
 
                     let mut new_elements = Vec::new();
 
+                    let mut aof_cmd = vec!["RPUSH".to_string(), key.clone()];
+
                     for arg in args.into_iter().skip(1) {
                         if let Ok(element_str) = unpack_bulk_str(arg) {
-                            new_elements.push(element_str);
+                            new_elements.push(element_str.clone());
+                            aof_cmd.push(element_str)
                         }
                     }
 
@@ -640,7 +643,7 @@ Value::SimpleString("OK".to_string())
                             db_lock.insert(
                                 key,
                                 DbValue {
-                                    value: DataType::List(new_elements),
+                                     value: DataType::List(new_elements),
                                     expires_at: None,
                                     version: new_version,
                                 },
@@ -648,6 +651,10 @@ Value::SimpleString("OK".to_string())
                             list_len
                         }
                     };
+
+                    drop(db_lock);
+
+                    append_to_aof(&config, &active_aof_path, &aof_cmd);
 
                     Value::Integer(final_len as i64)
                 }
