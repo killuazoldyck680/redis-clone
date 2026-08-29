@@ -1369,7 +1369,7 @@ Value::SimpleString("OK".to_string())
             }
 
             None => {
-                  db_lock.insert(key, DbValue { value: DataType::Str("1".to_string()), expires_at: None, version: 0 });
+                  db_lock.insert(key.clone(), DbValue { value: DataType::Str("1".to_string()), expires_at: None, version: 0 });
 
                 Value::Integer(1)
             }
