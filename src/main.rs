@@ -1338,13 +1338,13 @@ Value::SimpleString("OK".to_string())
 
         "incr" => {
            
-            let arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-            
-
+            let result = {
+                
            let mut db_lock = db.lock().unwrap();
 
-           match db_lock.get_mut(&arg)  {
+           match db_lock.get_mut(&key)  {
             Some(db_val) => {
                 if let DataType::Str(ref current_str) = db_val.value {
                     match current_str.parse::<i64>() {
@@ -1369,13 +1369,23 @@ Value::SimpleString("OK".to_string())
             }
 
             None => {
-                  db_lock.insert(arg, DbValue { value: DataType::Str("1".to_string()), expires_at: None, version: 0 });
+                  db_lock.insert(key, DbValue { value: DataType::Str("1".to_string()), expires_at: None, version: 0 });
 
                 Value::Integer(1)
             }
 
             
            }
+            };
+
+            if matches!(result, Value::Integer(_)) {
+              let aof_cmd = vec!["INCR".to_string(), key];
+        append_to_aof(&config, &active_aof_path, &aof_cmd);  
+            }
+
+            result
+            
+
         }
         "watch" => {
             Value::SimpleString("OK".to_string())
