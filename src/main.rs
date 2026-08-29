@@ -118,8 +118,7 @@ async fn main() {
             eprintln!("Error {}",e)
         }
 
-        let base_name = config.appendfilename.trim_end_matches(".aof");
-let file_name = format!("{base_name}.1.incr.aof");
+
 let manifest_name = format!("{base_name}.manifest");
         let file_path = path.join(file_name);
 
@@ -155,7 +154,7 @@ let manifest_name = format!("{base_name}.manifest");
 
 
 
-
+        *active_aof_path.lock().unwrap() = target_path;
 
 
     }
