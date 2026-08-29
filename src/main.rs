@@ -109,8 +109,7 @@ async fn main() {
     }
 
     
-
-
+let mut target_path: Option<PathBuf> = None;
     if config.appendonly.to_lowercase() == "yes" {
         let path = std::path::Path::new(&config.dir).join(&config.appenddirname);
 
@@ -118,41 +117,48 @@ async fn main() {
             eprintln!("Error {}",e)
         }
 
+        let manifest_name = if config.appendfilename.ends_with(".manifest") {
+        config.appendfilename.clone()
+    } else {
+        format!("{}.manifest", config.appendfilename)
+    };
 
-let manifest_name = format!("{base_name}.manifest");
-        let file_path = path.join(file_name);
 
-        if let Err(e) =  std::fs::File::create(file_path){
-            eprintln!("Error {}", e)
-        }
 
        
         let manifest_path = path.join(manifest_name);
 
-        let manifest_content = format!("file {}.1.incr.aof seq 1 type i\n", config.appendfilename);
+        let mut target_path = None;
 
-        if let Err(e) = std::fs::write(&manifest_path, manifest_content) {
-            eprintln!("Error {}",e)
-        }
-
-        let manifest_file = std::path::Path::new(&config.dir).join(&config.appenddirname).join(format!("{}.manifest", config.appendfilename));
-
-        let read_file = std::fs::read_to_string(manifest_path);
-
-        
-        if let Ok(content) = read_file {
-            let target_file = content.lines().find(|line| line.contains("type i")).and_then(|line| line.split_whitespace().nth(1));
+        if manifest_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                let target_file = content
+                .lines()
+                .find(|line| line.contains("type i"))
+                .and_then(|line| line.split_whitespace().nth(1));
 
             if let Some(filename) = target_file {
                 target_path = Some(path.join(filename));
             }
+            }
+        } else {
+            let base_name = config.appendfilename.trim_end_matches(".aof");
+        let incr_filename = format!("{base_name}.1.incr.aof");
+        let manifest_content = format!("file {incr_filename} seq 1 type i\n");
+        let _ = std::fs::write(&manifest_path, manifest_content);
 
+        let incr_path = path.join(&incr_filename);
+        let _ = std::fs::OpenOptions::new().create(true).append(true).open(&incr_path);
+        target_path = Some(incr_path);
+        }      
 
-
-
+        
+        if let Some(ref aof_file_path) = target_path {
+        if let Ok(aof_bytes) = std::fs::read(aof_file_path) {
+            // Parse aof_bytes using your RESP parser in a loop
+            // For each parsed command (e.g. SET foo 1), execute it directly against `db`
         }
-
-
+    }
 
         *active_aof_path.lock().unwrap() = target_path;
 
@@ -160,7 +166,7 @@ let manifest_name = format!("{base_name}.manifest");
     }
 
     
-    let active_aof_path : Arc<Option<PathBuf>> = Arc::new(target_path);
+   
     println!("Active AOF Path resolved to: {:?}", active_aof_path);
 
     
