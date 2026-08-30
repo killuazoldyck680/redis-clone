@@ -45,7 +45,7 @@ type ReplicaList = Arc<std::sync::Mutex<Vec<Arc<std::sync::Mutex<TcpStream>>>>>;
 async fn main() {
 
 
-    let mut target_path = None;
+    
     let mut port = "6379".to_string();
     let args: Vec<String> = std::env::args().collect();
 
@@ -53,7 +53,7 @@ async fn main() {
     let mut i = 1;
     let mut replica_info: Option<(String, String)> = None;
 
-    let mut  config= Config {
+    let mut  config= Config {kk
          dir: String::new(),
          dbfilename: String::new(),
          appendonly : String::new(),
@@ -160,10 +160,12 @@ let mut target_path: Option<PathBuf> = None;
         }
     }
 
-        *active_aof_path.lock().unwrap() = target_path;
+        
 
 
     }
+
+   let active_aof_path = Arc::new(target_path);
 
     
    
