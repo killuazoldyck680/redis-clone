@@ -49,7 +49,7 @@ async fn main() {
     let mut port = "6379".to_string();
     let args: Vec<String> = std::env::args().collect();
 
-    let mut is_replica = false;kk
+    let mut is_replica = false;
     let mut i = 1;
     let mut replica_info: Option<(String, String)> = None;
 
