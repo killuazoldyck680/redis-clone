@@ -123,12 +123,13 @@ let mut target_path: Option<PathBuf> = None;
         format!("{}.manifest", config.appendfilename)
     };
 
-    let byte_offset = 0;
 
-    for byte in aof_bytes {
-        
+
+    if let Some(ref aof_file_path) = target_path {
+        if let Ok(aof_bytes) = std::fs::read(aof_file_path) {
+            let mut offset = 0;
+        }
     }
-
 
 
        
