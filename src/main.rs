@@ -128,6 +128,19 @@ let mut target_path: Option<PathBuf> = None;
     if let Some(ref aof_file_path) = target_path {
         if let Ok(aof_bytes) = std::fs::read(aof_file_path) {
             let mut offset = 0;
+
+            while offset < aof_bytes.len() {
+                match parse_resp_value(&aof_bytes[offset..]) {
+                    Ok((command_val, bytes_read)) => {
+                        offset += bytes_read;
+
+                        execute_replayed_command(&db, command_val);
+
+                    }
+
+                    Err(_) => break,
+                }
+            }
         }
     }
 
