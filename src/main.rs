@@ -124,10 +124,15 @@ let mut target_path: Option<PathBuf> = None;
         format!("{}.manifest", config.appendfilename)
     };
 
-    let (std_stream, _dummy_receiver) = std::net::TcpStream::pair().unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+let local_addr = listener.local_addr().unwrap();
+
+let std_stream = std::net::TcpStream::connect(local_addr).unwrap();
 std_stream.set_nonblocking(true).unwrap();
-    let tokio_stream = tokio::net::TcpStream::from_std(std_stream).unwrap();
-let dummy_write_half = Arc::new(Mutex::new(tokio_stream));
+
+let tokio_stream = tokio::net::TcpStream::from_std(std_stream).unwrap();
+let dummy_write_half: Arc<std::sync::Mutex<tokio::net::TcpStream>> = Arc::new(std::sync::Mutex::new(tokio_stream));
+
     let dummy_replicas = Arc::new(Mutex::new(Vec::new()));
     if let Some(ref aof_file_path) = target_path {
         if let Ok(aof_bytes) = std::fs::read(aof_file_path) {
@@ -140,7 +145,7 @@ let dummy_write_half = Arc::new(Mutex::new(tokio_stream));
 
 
 
-                        execute_command(&"set".to_string(), vec![Value::BulkString("foo".to_string()), Value::BulkString("1".to_string())], &db, false,&dummy_replicas, &dummy_write_half, Arc::new(Mutex::new(0)), Arc::clone(config.clone()), Arc::new(None) );
+                        execute_command(&"set".to_string(), vec![Value::BulkString("foo".to_string()), Value::BulkString("1".to_string())], &db, false,&dummy_replicas, &dummy_write_half, Arc::new(Mutex::new(0)), Arc::new(config.clone()), Arc::new(None) );
 
                     }
 
