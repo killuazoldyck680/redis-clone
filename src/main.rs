@@ -123,6 +123,12 @@ let mut target_path: Option<PathBuf> = None;
         format!("{}.manifest", config.appendfilename)
     };
 
+    let byte_offset = 0;
+
+    for byte in aof_bytes {
+        
+    }
+
 
 
        
