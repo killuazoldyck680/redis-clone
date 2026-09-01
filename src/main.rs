@@ -108,7 +108,8 @@ async fn main() {
         }
     }
 
-    
+    let db: Db = Arc::new(Mutex::new(HashMap::new()));
+
 let mut target_path: Option<PathBuf> = None;
     if config.appendonly.to_lowercase() == "yes" {
         let path = std::path::Path::new(&config.dir).join(&config.appenddirname);
@@ -134,7 +135,9 @@ let mut target_path: Option<PathBuf> = None;
                     Ok((command_val, bytes_read)) => {
                         offset += bytes_read;
 
-                        execute_replayed_command(&db, command_val);
+                        
+
+                        execute_command(&"set".to_string(), vec![Value::BulkString("foo".to_string()), Value::BulkString("1".to_string())], &db, false,Arc::new(Mutex::new(Vec::new())), None, Arc::new(Mutex::new(0)), config, Arc::new(None) );
 
                     }
 
@@ -194,8 +197,7 @@ let mut target_path: Option<PathBuf> = None;
     
     let config = Arc::new(config);
 
-    let db: Db = Arc::new(Mutex::new(HashMap::new()));
-    println!("Loading RDB from dir: '{}', file: '{}'", config.dir, config.dbfilename);
+        println!("Loading RDB from dir: '{}', file: '{}'", config.dir, config.dbfilename);
     if let Err(e) = load_rdb_file(&config, Arc::clone(&db)) {
         eprintln!("Error loading RDB file: {}", e);
     }
