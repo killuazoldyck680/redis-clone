@@ -23,6 +23,7 @@ pub struct RespHandler {
     buffer: BytesMut,
 }
 
+#[derive(Clone)]
 pub struct Config {
     pub dir : String,
     pub dbfilename: String,
