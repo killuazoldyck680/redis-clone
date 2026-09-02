@@ -145,7 +145,7 @@ pub fn parse_message(buffer: BytesMut) -> Result<(Value, usize)> {
     }
 }
 
-fn parse_simple_string(buffer: BytesMut) -> Result<(Value, usize)> {
+fn parse_simple_string(buffer: BytesMut) -> Result<(Value, usize)> {ll
     if let Some((line, len)) = read_until_crlf(&buffer[1..]) {
         let string = String::from_utf8(line.to_vec()).unwrap();
 

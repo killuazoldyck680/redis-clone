@@ -147,7 +147,7 @@ if let Some(ref aof_file_path) = target_path {
                     offset += bytes_read;
 
                     if let Value::Array(elements) = value {
-                        if elements.is_empty() {kk
+                        if elements.is_empty() {
                             continue;
                         }
 
