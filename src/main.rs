@@ -11,6 +11,8 @@ use std::{env, result, string, usize, vec};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::OwnedWriteHalf;
+use crate::resp::parse_message;
+use bytes::BytesMut;
 
 
 
@@ -133,27 +135,50 @@ std_stream.set_nonblocking(true).unwrap();
 let tokio_stream = tokio::net::TcpStream::from_std(std_stream).unwrap();
 let dummy_write_half: Arc<std::sync::Mutex<tokio::net::TcpStream>> = Arc::new(std::sync::Mutex::new(tokio_stream));
 
-    let dummy_replicas = Arc::new(Mutex::new(Vec::new()));
-    if let Some(ref aof_file_path) = target_path {
-        if let Ok(aof_bytes) = std::fs::read(aof_file_path) {
-            let mut offset = 0;
+let dummy_replicas = Arc::new(Mutex::new(Vec::new()));
 
-            while offset < aof_bytes.len() {
-                match parse_resp_value(&aof_bytes[offset..]) {
-                    Ok((command_val, bytes_read)) => {
-                        offset += bytes_read;
+if let Some(ref aof_file_path) = target_path {
+    if let Ok(aof_bytes) = std::fs::read(aof_file_path) {
+        let mut offset = 0;
 
+        while offset < aof_bytes.len() {
+            match parse_message(bytes::BytesMut::from(&aof_bytes[offset..])) {
+                Ok((value, bytes_read)) => {
+                    offset += bytes_read;
 
+                    if let Value::Array(elements) = value {
+                        if elements.is_empty() {kk
+                            continue;
+                        }
 
-                        execute_command(&"set".to_string(), vec![Value::BulkString("foo".to_string()), Value::BulkString("1".to_string())], &db, false,&dummy_replicas, &dummy_write_half, Arc::new(Mutex::new(0)), Arc::new(config.clone()), Arc::new(None) );
+                        // Extract command name (e.g. "SET")
+                        let command = match &elements[0] {
+                            Value::BulkString(s) | Value::SimpleString(s) => s.to_string(),
+                            _ => continue,
+                        };
 
+                        // Extract remaining arguments
+                        let args = elements[1..].to_vec();
+
+                        // Pass extracted command & args, then append .await
+                        execute_command(
+                            &command,
+                            args,
+                            &db,
+                            false,
+                            &dummy_replicas,
+                            &dummy_write_half,
+                            Arc::new(Mutex::new(0)),
+                            Arc::new(config.clone()),
+                            Arc::new(None),
+                        ).await;
                     }
-
-                    Err(_) => break,
                 }
-            }
+                Err(_) => break,
+            } // <--- Added missing closing brace for match
         }
     }
+}
 
 
        

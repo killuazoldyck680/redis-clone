@@ -136,7 +136,7 @@ pub async fn read_value(&mut self) -> Result<Option<(Value, usize)>> {
     }
 }
 
-fn parse_message(buffer: BytesMut) -> Result<(Value, usize)> {
+pub fn parse_message(buffer: BytesMut) -> Result<(Value, usize)> {
     match buffer[0] as char {
         '+' => parse_simple_string(buffer),
         '*' => parse_array(buffer),
