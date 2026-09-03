@@ -155,7 +155,7 @@ fn parse_simple_string(buffer: BytesMut) -> Result<(Value, usize)> {
     return Err(anyhow::anyhow!("Invalid string {:?}", buffer));
 }
 
-fn parse_array(buffer: BytesMut) -> Result<(Value, usize)> {
+fn kkparse_array(buffer: BytesMut) -> Result<(Value, usize)> {
     let (array_length, mut bytes_consumed) =
         if let Some((line, len)) = read_until_crlf(&buffer[1..]) {
             let array_length = parse_int(line)?;
