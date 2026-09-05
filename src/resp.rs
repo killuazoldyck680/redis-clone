@@ -150,7 +150,7 @@ fn parse_simple_string(buffer: BytesMut) -> Result<(Value, usize)> {
         let string = String::from_utf8(line.to_vec()).unwrap();
 
         return Ok((Value::SimpleString(string), len + 1));
-    }jj
+    }
 
     return Err(anyhow::anyhow!("Invalid string {:?}", buffer));
 }
