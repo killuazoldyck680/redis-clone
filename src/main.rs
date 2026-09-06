@@ -148,7 +148,7 @@ if let Some(ref aof_file_path) = target_path {
 
                     if let Value::Array(elements) = value {
                         if elements.is_empty() {
-                            continue;ll
+                            continue;
                         }
 
                         // Extract command name (e.g. "SET")
