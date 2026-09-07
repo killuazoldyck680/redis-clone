@@ -13,6 +13,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::OwnedWriteHalf;
 use crate::resp::parse_message;
 use bytes::BytesMut;
+use std::io::Write;
 
 
 
@@ -43,204 +44,13 @@ type ReplicaList = Arc<std::sync::Mutex<Vec<Arc<std::sync::Mutex<TcpStream>>>>>;
 
 
 
-#[tokio::main]
-async fn main() {
 
+// --- Helper Functions Moved to Module Scope ---
 
-    
-    let mut port = "6379".to_string();
-    let args: Vec<String> = std::env::args().collect();
-
-    let mut is_replica = false;
-    let mut i = 1;
-    let mut replica_info: Option<(String, String)> = None;
-
-    let mut  config= Config {
-         dir: String::new(),
-         dbfilename: String::new(),
-         appendonly : String::new(),
-        appenddirname : String::new(),
-        appendfsync:  String::new(),
-        appendfilename: String::new(),
-        
-    };
-
-    
-    let mut config = Config::default();
-
-    
-
-
-    while i < args.len() {
-        if args[i] == "--port" && i + 1 < args.len() {
-            port = args[i + 1].clone();
-            i += 2;
-        } else if args[i] == "--replicaof" && i + 1 < args.len() {
-            is_replica = true;
-            let parts: Vec<&str> = args[i + 1].split_whitespace().collect();
-            if parts.len() == 2 {
-                replica_info = Some((parts[0].to_string(), parts[1].to_string()));
-            }
-            i += 2;
-        } else if args[i] == "--dir" && i + 1 < args.len() {
-        config.dir = args[i + 1].clone();
-        i += 2;
-    } else if args[i] == "--dbfilename" && i + 1 < args.len() {
-        config.dbfilename = args[i + 1].clone();
-        i += 2;
-    } else if args[i] == "--appendonly" && i + 1 < args.len() {
-        config.appendonly = args[i + 1].clone();
-
-
-        i += 2;
-    } else if args[i] == "--appenddirname" && i + 1 < args.len() {
-        config.appenddirname = args[i + 1].clone();
-        i += 2;
-    } else if args[i] == "--appendfilename" && i + 1 < args.len() {
-        config.appendfilename = args[i + 1].clone();
-        i += 2;
-    } else if args[i] == "--appendfsync" && i + 1 < args.len() {
-        config.appendfsync = args[i + 1].clone();
-        i += 2;
-    }
-        
-        
-         else {
-            i += 1;
-        }
-    }
-
-    let db: Db = Arc::new(Mutex::new(HashMap::new()));
-
-let mut target_path: Option<PathBuf> = None;
-    if config.appendonly.to_lowercase() == "yes" {
-        let path = std::path::Path::new(&config.dir).join(&config.appenddirname);
-
-        if let Err(e) = std::fs::create_dir_all(&path) {
-            eprintln!("Error {}",e)
-        }
-
-        let manifest_name = if config.appendfilename.ends_with(".manifest") {
-        config.appendfilename.clone()
-    } else {
-        format!("{}.manifest", config.appendfilename)
-    };
-
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-let local_addr = listener.local_addr().unwrap();
-
-let std_stream = std::net::TcpStream::connect(local_addr).unwrap();
-std_stream.set_nonblocking(true).unwrap();
-
-let tokio_stream = tokio::net::TcpStream::from_std(std_stream).unwrap();
-let dummy_write_half: Arc<std::sync::Mutex<tokio::net::TcpStream>> = Arc::new(std::sync::Mutex::new(tokio_stream));
-
-let dummy_replicas = Arc::new(Mutex::new(Vec::new()));
-
-if let Some(ref aof_file_path) = target_path {
-    if let Ok(aof_bytes) = std::fs::read(aof_file_path) {
-        let mut offset = 0;
-
-        while offset < aof_bytes.len() {
-            match parse_message(bytes::BytesMut::from(&aof_bytes[offset..])) {
-                Ok((value, bytes_read)) => {
-                    offset += bytes_read;
-
-                    if let Value::Array(elements) = value {
-                        if elements.is_empty() {
-                            continue;
-                        }
-
-                        // Extract command name (e.g. "SET")
-                        let command = match &elements[0] {
-                            Value::BulkString(s) | Value::SimpleString(s) => s.to_string(),
-                            _ => continue,
-                        };
-
-                        // Extract remaining arguments
-                        let args = elements[1..].to_vec();
-
-                        // Pass extracted command & args, then append .await
-                        execute_command(
-                            &command,
-                            args,
-                            &db,
-                            false,
-                            &dummy_replicas,
-                            &dummy_write_half,
-                            Arc::new(Mutex::new(0)),
-                            Arc::new(config.clone()),
-                            Arc::new(None),
-                        ).await;
-                    }
-                }
-                Err(_) => break,
-            } // <--- Added missing closing brace for match
-        }
-    }
-}
-
-
-       
-        let manifest_path = path.join(manifest_name);
-
-        let mut target_path = None;
-
-        if manifest_path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
-                let target_file = content
-                .lines()
-                .find(|line| line.contains("type i"))
-                .and_then(|line| line.split_whitespace().nth(1));
-
-            if let Some(filename) = target_file {
-                target_path = Some(path.join(filename));
-            }
-            }
-        } else {
-            let base_name = config.appendfilename.trim_end_matches(".aof");
-        let incr_filename = format!("{base_name}.1.incr.aof");
-        let manifest_content = format!("file {incr_filename} seq 1 type i\n");
-        let _ = std::fs::write(&manifest_path, manifest_content);
-
-        let incr_path = path.join(&incr_filename);
-        let _ = std::fs::OpenOptions::new().create(true).append(true).open(&incr_path);
-        target_path = Some(incr_path);
-        }      
-
-        
-        if let Some(ref aof_file_path) = target_path {
-        if let Ok(aof_bytes) = std::fs::read(aof_file_path) {
-            // Parse aof_bytes using your RESP parser in a loop
-            // For each parsed command (e.g. SET foo 1), execute it directly against `db`
-        }
-    }
-
-        
-
-
-    }
-
-   let active_aof_path = Arc::new(target_path);
-
-    
-   
-    println!("Active AOF Path resolved to: {:?}", active_aof_path);
-
-    
-    let config = Arc::new(config);
-
-        println!("Loading RDB from dir: '{}', file: '{}'", config.dir, config.dbfilename);
-    if let Err(e) = load_rdb_file(&config, Arc::clone(&db)) {
-        eprintln!("Error loading RDB file: {}", e);
-    }
-
-    println!("Loaded keys count: {}", db.lock().unwrap().len());
-
-    fn load_rdb_file(config: &Config, db: Db) -> Result<(), Box<dyn std::error::Error>> {
+fn load_rdb_file(config: &Config, db: Db) -> Result<(), Box<dyn std::error::Error>> {
     let path = Path::new(&config.dir).join(&config.dbfilename);
     if !path.exists() {
-        return Ok(()); 
+        return Ok(());
     }
 
     let file_open = File::open(path)?;
@@ -250,7 +60,7 @@ if let Some(ref aof_file_path) = target_path {
     reader.read_exact(&mut header)?;
 
     if &header[0..5] != b"REDIS" {
-        return Err("Invalid RDB magic header".into()); 
+        return Err("Invalid RDB magic header".into());
     }
 
     loop {
@@ -263,7 +73,7 @@ if let Some(ref aof_file_path) = target_path {
             0xFA => {
                 let _name = read_string(&mut reader)?;
                 let _val = read_string(&mut reader)?;
-            } 
+            }
             0xFE => {
                 let _db_num = read_len(&mut reader)?;
             }
@@ -282,7 +92,7 @@ if let Some(ref aof_file_path) = target_path {
                 let key = read_string(&mut reader)?;
                 let val = match val_type[0] {
                     0x00 => read_string(&mut reader)?,
-                    _ => continue, // Skip unsupported value types safely
+                    _ => continue,
                 };
 
                 let target_time = SystemTime::UNIX_EPOCH + Duration::from_millis(timestamp);
@@ -293,8 +103,12 @@ if let Some(ref aof_file_path) = target_path {
 
                 if expires_at.is_some() {
                     db.lock().unwrap().insert(
-                        key, 
-                        DbValue { value: DataType::Str(val), expires_at, version: 0 }
+                        key,
+                        DbValue {
+                            value: DataType::Str(val),
+                            expires_at,
+                            version: 0,
+                        },
                     );
                 }
             }
@@ -320,8 +134,12 @@ if let Some(ref aof_file_path) = target_path {
 
                 if expires_at.is_some() {
                     db.lock().unwrap().insert(
-                        key, 
-                        DbValue { value: DataType::Str(val), expires_at, version: 0 }
+                        key,
+                        DbValue {
+                            value: DataType::Str(val),
+                            expires_at,
+                            version: 0,
+                        },
                     );
                 }
             }
@@ -330,11 +148,15 @@ if let Some(ref aof_file_path) = target_path {
                 let val = read_string(&mut reader)?;
 
                 db.lock().unwrap().insert(
-                    key, 
-                    DbValue { value: DataType::Str(val), expires_at: None, version: 0 }
+                    key,
+                    DbValue {
+                        value: DataType::Str(val),
+                        expires_at: None,
+                        version: 0,
+                    },
                 );
             }
-            0xFF => break, // EOF
+            0xFF => break,
             _ => {}
         }
     }
@@ -389,132 +211,20 @@ fn read_string(reader: &mut BufReader<File>) -> Result<String, Box<dyn std::erro
                 let mut buf = [0u8; 2];
                 reader.read_exact(&mut buf)?;
                 let val = u16::from_le_bytes(buf);
-                Ok(val.to_string()) 
+                Ok(val.to_string())
             }
             2 => {
                 let mut buf = [0u8; 4];
                 reader.read_exact(&mut buf)?;
                 let val = u32::from_le_bytes(buf);
-                Ok(val.to_string()) 
+                Ok(val.to_string())
             }
             _ => Err("Unsupported integer encoding format".into()),
-        } 
-    }
-}
-
-    
-     
-
-    let addr = format!("127.0.0.1:{port}");
-    let listener = TcpListener::bind(&addr).await.unwrap();
-
-    let replicas: ReplicaList = Arc::new(Mutex::new(Vec::new()));
-    
-    let master_repl_offset = Arc::new(Mutex::new(0usize));
-
-    if let Some((master_host, master_port)) = replica_info {
-        let master_addr = format!("{master_host}:{master_port}");
-        let port_clone = port.clone();
-        
-        let db_master = Arc::clone(&db); 
-        let replicas_master = Arc::clone(&replicas);   
-        let offset_master = Arc::clone(&master_repl_offset);
-        
-        let config_master = Arc::clone(&config);
-        
-        let aof_master = Arc::clone(&active_aof_path); // FIX 1: Clone before spawn
-
-        tokio::spawn(async move { 
-            if let Ok(stream) = TcpStream::connect(&master_addr).await {
-                let mut reader = tokio::io::BufReader::new(stream);
-                let mut line = String::new();
-
-                // 1. PING
-                let ping_cmd = "*1\r\n$4\r\nPING\r\n";
-                let _ = reader.write_all(ping_cmd.as_bytes()).await;
-                let _ = reader.flush().await;
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
-
-                // 2. REPLCONF listening-port
-                let replconf_port = format!(
-                    "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n", 
-                    port_clone.len(), 
-                    port_clone
-                );
-                let _ = reader.write_all(replconf_port.as_bytes()).await;
-                let _ = reader.flush().await;
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
-
-                // 3. REPLCONF capa
-                let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
-                let _ = reader.write_all(replconf_capa.as_bytes()).await;
-                let _ = reader.flush().await;
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
-
-                // 4. PSYNC
-                let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
-                let _ = reader.write_all(psync.as_bytes()).await;
-                let _ = reader.flush().await;
-                
-                // 5. READ +FULLRESYNC line
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
-
-                // 6. READ $rdb_len line
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
-
-                // 7. DRAIN RDB PAYLOAD
-                if line.starts_with('$') {
-                    if let Ok(rdb_len) = line.trim_start_matches('$').trim().parse::<usize>() {
-                        let mut rdb_buf = vec![0u8; rdb_len];
-                        let _ = reader.read_exact(&mut rdb_buf).await;
-                    }
-                }
-
-                let stream = reader.into_inner();
-
-                println!("Handshake complete. Starting master replication loop...");
-
-                handle_conn(stream, db_master, true, replicas_master, true, offset_master, config_master,aof_master).await;
-            }
-        });
-    }
-
-    loop {
-        let stream = listener.accept().await;
-
-        let config_clone = Arc::clone(&config);
-
-        let aof_path_clone = Arc::clone(&active_aof_path);
-
-
-        match stream {
-            Ok((stream, _)) => {
-                println!("connection established");
-
-                let db_client = Arc::clone(&db);
-                let replicas_client = Arc::clone(&replicas);
-                let offset_client = Arc::clone(&master_repl_offset);
-                
-                
-                tokio::spawn(async move {
-                    handle_conn(stream, db_client, is_replica, replicas_client, false, offset_client, config_clone,aof_path_clone,).await; // FIX 2: Pass offset_client directly
-                });
-            }
-            Err(e) => {
-                println!("error: {e}")
-            }
         }
     }
 }
 
 fn append_to_aof(config: &Config, active_aof_path: &Arc<Option<PathBuf>>, command_args: &[String]) {
-    use std::io::Write;
-
     if config.appendonly.to_lowercase() != "yes" {
         return;
     }
@@ -528,8 +238,285 @@ fn append_to_aof(config: &Config, active_aof_path: &Arc<Option<PathBuf>>, comman
 
         if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(path) {
             let _ = file.write_all(resp_bytes.as_bytes());
-
             let _ = file.sync_all();
+        }
+    }
+}
+
+// --- Main Application Loop ---
+
+#[tokio::main]
+async fn main() {
+    let mut port = "6379".to_string();
+    let args: Vec<String> = std::env::args().collect();
+
+    let mut is_replica = false;
+    let mut i = 1;
+    let mut replica_info: Option<(String, String)> = None;
+    let mut config = Config::default();
+
+    while i < args.len() {
+        if args[i] == "--port" && i + 1 < args.len() {
+            port = args[i + 1].clone();
+            i += 2;
+        } else if args[i] == "--replicaof" && i + 1 < args.len() {
+            is_replica = true;
+            let parts: Vec<&str> = args[i + 1].split_whitespace().collect();
+            if parts.len() == 2 {
+                replica_info = Some((parts[0].to_string(), parts[1].to_string()));
+            }
+            i += 2;
+        } else if args[i] == "--dir" && i + 1 < args.len() {
+            config.dir = args[i + 1].clone();
+            i += 2;
+        } else if args[i] == "--dbfilename" && i + 1 < args.len() {
+            config.dbfilename = args[i + 1].clone();
+            i += 2;
+        } else if args[i] == "--appendonly" && i + 1 < args.len() {
+            config.appendonly = args[i + 1].clone();
+            i += 2;
+        } else if args[i] == "--appenddirname" && i + 1 < args.len() {
+            config.appenddirname = args[i + 1].clone();
+            i += 2;
+        } else if args[i] == "--appendfilename" && i + 1 < args.len() {
+            config.appendfilename = args[i + 1].clone();
+            i += 2;
+        } else if args[i] == "--appendfsync" && i + 1 < args.len() {
+            config.appendfsync = args[i + 1].clone();
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+
+    let db: Db = Arc::new(Mutex::new(HashMap::new()));
+    let mut target_path: Option<PathBuf> = None;
+
+    if config.appendonly.to_lowercase() == "yes" {
+        let path = std::path::Path::new(&config.dir).join(&config.appenddirname);
+
+        if let Err(e) = std::fs::create_dir_all(&path) {
+            eprintln!("Error creating dir: {}", e);
+        }
+
+        let manifest_name = if config.appendfilename.ends_with(".manifest") {
+            config.appendfilename.clone()
+        } else {
+            format!("{}.manifest", config.appendfilename)
+        };
+
+        let manifest_path = path.join(&manifest_name);
+
+        if manifest_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                let target_file = content
+                    .lines()
+                    .find(|line| line.contains("type i"))
+                    .and_then(|line| line.split_whitespace().nth(1));
+
+                if let Some(filename) = target_file {
+                    target_path = Some(path.join(filename));
+                }
+            }
+        }
+
+        if target_path.is_none() {
+            let standard_aof_path = path.join(&config.appendfilename);
+            if standard_aof_path.exists() {
+                target_path = Some(standard_aof_path);
+            } else {
+                let base_name = config.appendfilename.trim_end_matches(".aof");
+                let incr_filename = format!("{base_name}.1.incr.aof");
+                let manifest_content = format!("file {incr_filename} seq 1 type i\n");
+                let _ = std::fs::write(&manifest_path, manifest_content);
+
+                let incr_path = path.join(&incr_filename);
+                let _ = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&incr_path);
+
+                target_path = Some(incr_path);
+            }
+        }
+
+        // --- Replay Block ---
+        if let Some(ref aof_file_path) = target_path {
+            println!("Loading AOF from path: {:?}", aof_file_path);
+            if let Ok(aof_bytes) = std::fs::read(aof_file_path) {
+                println!(
+                    "AOF file read successfully ({} bytes). Beginning replay...",
+                    aof_bytes.len()
+                );
+                let mut offset = 0;
+
+                let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+                let local_addr = listener.local_addr().unwrap();
+                let std_stream = std::net::TcpStream::connect(local_addr).unwrap();
+                std_stream.set_nonblocking(true).unwrap();
+
+                let tokio_stream = tokio::net::TcpStream::from_std(std_stream).unwrap();
+                let dummy_write_half = Arc::new(std::sync::Mutex::new(tokio_stream));
+                let dummy_replicas = Arc::new(Mutex::new(Vec::new()));
+
+                while offset < aof_bytes.len() {
+                    match parse_message(bytes::BytesMut::from(&aof_bytes[offset..])) {
+                        Ok((value, bytes_read)) => {
+                            offset += bytes_read;
+
+                            if let Value::Array(elements) = value {
+                                if elements.is_empty() {
+                                    continue;
+                                }
+
+                                let command = match &elements[0] {
+                                    Value::BulkString(s) | Value::SimpleString(s) => s.to_string(),
+                                    _ => continue,
+                                };
+
+                                let args = elements[1..].to_vec();
+
+                                execute_command(
+                                    &command,
+                                    args,
+                                    &db,
+                                    false,
+                                    &dummy_replicas,
+                                    &dummy_write_half,
+                                    Arc::new(Mutex::new(0)),
+                                    Arc::new(config.clone()),
+                                    Arc::new(None),
+                                )
+                                .await;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            }
+        }
+    }
+
+    let active_aof_path = Arc::new(target_path);
+    println!("Active AOF Path resolved to: {:?}", active_aof_path);
+
+    let config = Arc::new(config);
+
+    println!("Loading RDB from dir: '{}', file: '{}'", config.dir, config.dbfilename);
+    if let Err(e) = load_rdb_file(&config, Arc::clone(&db)) {
+        eprintln!("Error loading RDB file: {}", e);
+    }
+
+    println!("Loaded keys count: {}", db.lock().unwrap().len());
+
+    let addr = format!("127.0.0.1:{port}");
+    let listener = TcpListener::bind(&addr).await.unwrap();
+
+    let replicas: ReplicaList = Arc::new(Mutex::new(Vec::new()));
+    let master_repl_offset = Arc::new(Mutex::new(0usize));
+
+    if let Some((master_host, master_port)) = replica_info {
+        let master_addr = format!("{master_host}:{master_port}");
+        let port_clone = port.clone();
+
+        let db_master = Arc::clone(&db);
+        let replicas_master = Arc::clone(&replicas);
+        let offset_master = Arc::clone(&master_repl_offset);
+        let config_master = Arc::clone(&config);
+        let aof_master = Arc::clone(&active_aof_path);
+
+        tokio::spawn(async move {
+            if let Ok(stream) = TcpStream::connect(&master_addr).await {
+                let mut reader = tokio::io::BufReader::new(stream);
+                let mut line = String::new();
+
+                let ping_cmd = "*1\r\n$4\r\nPING\r\n";
+                let _ = reader.write_all(ping_cmd.as_bytes()).await;
+                let _ = reader.flush().await;
+                line.clear();
+                let _ = reader.read_line(&mut line).await;
+
+                let replconf_port = format!(
+                    "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n",
+                    port_clone.len(),
+                    port_clone
+                );
+                let _ = reader.write_all(replconf_port.as_bytes()).await;
+                let _ = reader.flush().await;
+                line.clear();
+                let _ = reader.read_line(&mut line).await;
+
+                let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
+                let _ = reader.write_all(replconf_capa.as_bytes()).await;
+                let _ = reader.flush().await;
+                line.clear();
+                let _ = reader.read_line(&mut line).await;
+
+                let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
+                let _ = reader.write_all(psync.as_bytes()).await;
+                let _ = reader.flush().await;
+
+                line.clear();
+                let _ = reader.read_line(&mut line).await;
+
+                line.clear();
+                let _ = reader.read_line(&mut line).await;
+
+                if line.starts_with('$') {
+                    if let Ok(rdb_len) = line.trim_start_matches('$').trim().parse::<usize>() {
+                        let mut rdb_buf = vec![0u8; rdb_len];
+                        let _ = reader.read_exact(&mut rdb_buf).await;
+                    }
+                }
+
+                let stream = reader.into_inner();
+                println!("Handshake complete. Starting master replication loop...");
+
+                handle_conn(
+                    stream,
+                    db_master,
+                    true,
+                    replicas_master,
+                    true,
+                    offset_master,
+                    config_master,
+                    aof_master,
+                )
+                .await;
+            }
+        });
+    }
+
+    loop {
+        let stream = listener.accept().await;
+        let config_clone = Arc::clone(&config);
+        let aof_path_clone = Arc::clone(&active_aof_path);
+
+        match stream {
+            Ok((stream, _)) => {
+                println!("connection established");
+
+                let db_client = Arc::clone(&db);
+                let replicas_client = Arc::clone(&replicas);
+                let offset_client = Arc::clone(&master_repl_offset);
+
+                tokio::spawn(async move {
+                    handle_conn(
+                        stream,
+                        db_client,
+                        is_replica,
+                        replicas_client,
+                        false,
+                        offset_client,
+                        config_clone,
+                        aof_path_clone,
+                    )
+                    .await;
+                });
+            }
+            Err(e) => {
+                println!("error: {e}");
+            }
         }
     }
 }
