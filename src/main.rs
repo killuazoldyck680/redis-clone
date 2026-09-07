@@ -259,19 +259,24 @@ async fn main() {
         if args[i] == "--port" && i + 1 < args.len() {
             port = args[i + 1].clone();
             i += 2;
-        } else if args[i] == "--replicaof" && i + 1 < args.len() {
+        } else if args[i] == "--replicaof" {
             is_replica = true;
-            let parts: Vec<&str> = args[i + 1].split_whitespace().collect();
-            if parts.len() == 2 {
-                replica_info = Some((parts[0].to_string(), parts[1].to_string()));
-                i += 2
-            } else if i + 2 < args.len() {
-               replica_info = Some((args[i + 1].clone(), args[i + 2].clone()));
-                    i += 3; 
+            if i + 1 < args.len() {
+                let parts: Vec<&str> = args[i + 1].split_whitespace().collect();
+                if parts.len() == 2 {
+                    // Handles: --replicaof "127.0.0.1 6379"
+                    replica_info = Some((parts[0].to_string(), parts[1].to_string()));
+                    i += 2;
+                } else if i + 2 < args.len() {
+                    // Handles: --replicaof 127.0.0.1 6379
+                    replica_info = Some((args[i + 1].clone(), args[i + 2].clone()));
+                    i += 3;
+                } else {
+                    i += 1;
+                }
             } else {
                 i += 1;
-            } 
-        
+            }
         } else if args[i] == "--dir" && i + 1 < args.len() {
             config.dir = args[i + 1].clone();
             i += 2;
