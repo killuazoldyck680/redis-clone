@@ -425,58 +425,81 @@ async fn main() {
 
     let replicas: ReplicaList = Arc::new(Mutex::new(Vec::new()));
     let master_repl_offset = Arc::new(Mutex::new(0usize));
+if let Some((master_host, master_port)) = replica_info {
+    let master_addr = format!("{master_host}:{master_port}");
+    let port_clone = port.clone();
 
-    if let Some((master_host, master_port)) = replica_info {
-        let master_addr = format!("{master_host}:{master_port}");
-        let port_clone = port.clone();
+    let db_master = Arc::clone(&db);
+    let replicas_master = Arc::clone(&replicas);
+    let offset_master = Arc::clone(&master_repl_offset);
+    let config_master = Arc::clone(&config);
+    let aof_master = Arc::clone(&active_aof_path);
 
-        let db_master = Arc::clone(&db);
-        let replicas_master = Arc::clone(&replicas);
-        let offset_master = Arc::clone(&master_repl_offset);
-        let config_master = Arc::clone(&config);
-        let aof_master = Arc::clone(&active_aof_path);
-
-        tokio::spawn(async move {
-            if let Ok(stream) = TcpStream::connect(&master_addr).await {
+    tokio::spawn(async move {
+        println!("Connecting to master at {master_addr}...");
+        match TcpStream::connect(&master_addr).await {
+            Ok(stream) => {
                 let mut reader = tokio::io::BufReader::new(stream);
                 let mut line = String::new();
 
+                // 1. PING
                 let ping_cmd = "*1\r\n$4\r\nPING\r\n";
-                let _ = reader.write_all(ping_cmd.as_bytes()).await;
-                let _ = reader.flush().await;
+                if reader.write_all(ping_cmd.as_bytes()).await.is_err() || reader.flush().await.is_err() {
+                    eprintln!("Failed to send PING to master");
+                    return;
+                }
                 line.clear();
                 let _ = reader.read_line(&mut line).await;
+                println!("Master response to PING: {}", line.trim());
 
+                // 2. REPLCONF listening-port
                 let replconf_port = format!(
                     "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n",
                     port_clone.len(),
                     port_clone
                 );
-                let _ = reader.write_all(replconf_port.as_bytes()).await;
-                let _ = reader.flush().await;
+                if reader.write_all(replconf_port.as_bytes()).await.is_err() || reader.flush().await.is_err() {
+                    eprintln!("Failed to send REPLCONF listening-port");
+                    return;
+                }
                 line.clear();
                 let _ = reader.read_line(&mut line).await;
+                println!("Master response to REPLCONF port: {}", line.trim());
 
+                // 3. REPLCONF capa psync2
                 let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
-                let _ = reader.write_all(replconf_capa.as_bytes()).await;
-                let _ = reader.flush().await;
+                if reader.write_all(replconf_capa.as_bytes()).await.is_err() || reader.flush().await.is_err() {
+                    eprintln!("Failed to send REPLCONF capa");
+                    return;
+                }
                 line.clear();
                 let _ = reader.read_line(&mut line).await;
+                println!("Master response to REPLCONF capa: {}", line.trim());
 
+                // 4. PSYNC
                 let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
-                let _ = reader.write_all(psync.as_bytes()).await;
-                let _ = reader.flush().await;
+                if reader.write_all(psync.as_bytes()).await.is_err() || reader.flush().await.is_err() {
+                    eprintln!("Failed to send PSYNC");
+                    return;
+                }
 
+                // Read +FULLRESYNC
                 line.clear();
                 let _ = reader.read_line(&mut line).await;
+                println!("Master response to PSYNC: {}", line.trim());
 
+                // Read RDB length header ($<len>)
                 line.clear();
                 let _ = reader.read_line(&mut line).await;
+                let trimmed_rdb_line = line.trim();
+                println!("RDB Length Header: {trimmed_rdb_line}");
 
-                if line.starts_with('$') {
-                    if let Ok(rdb_len) = line.trim_start_matches('$').trim().parse::<usize>() {
+                if trimmed_rdb_line.starts_with('$') {
+                    if let Ok(rdb_len) = trimmed_rdb_line.trim_start_matches('$').parse::<usize>() {
+                        println!("Reading {rdb_len} bytes of RDB payload...");
                         let mut rdb_buf = vec![0u8; rdb_len];
                         let _ = reader.read_exact(&mut rdb_buf).await;
+                        println!("RDB payload read successfully!");
                     }
                 }
 
@@ -495,8 +518,12 @@ async fn main() {
                 )
                 .await;
             }
-        });
-    }
+            Err(e) => {
+                eprintln!("Failed to connect to master at {master_addr}: {e}");
+            }
+        }
+    });
+}
 
     loop {
         let stream = listener.accept().await;

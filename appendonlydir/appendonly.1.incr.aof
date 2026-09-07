@@ -40,3 +40,17 @@ $12
 replica_test
 $3
 999
+*3
+$3
+SET
+$6
+user:1
+$5
+alice
+*3
+$3
+SET
+$12
+replica_test
+$3
+999
