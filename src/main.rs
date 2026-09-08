@@ -250,6 +250,8 @@ async fn main() {
     let mut port = "6379".to_string();
     let args: Vec<String> = std::env::args().collect();
 
+    let sub_registry = Arc::new(Mutex::new(HashMap::new()));
+
     let mut is_replica = false;
     let mut i = 1;
     let mut replica_info: Option<(String, String)> = None;
@@ -561,8 +563,10 @@ if let Some((master_host, master_port)) = replica_info {
 
 
 
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>) -> Value {
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>, sub_regsitry: &Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>,local_subscriptions: &mut HashSet<String>) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
+
+    let sub_registry_clone = Arc::clone(&sub_registry);
 
     
     match command.to_lowercase().as_str() {
@@ -1724,7 +1728,7 @@ Value::SimpleString("OK".to_string())
     }
 } 
  "subscribe" => {
-    
+
  }
     
 
