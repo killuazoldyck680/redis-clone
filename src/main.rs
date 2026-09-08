@@ -1722,7 +1722,10 @@ Value::SimpleString("OK".to_string())
     } else {
         Value::Array(vec![])
     }
-}
+} 
+ "subscribe" => {
+    
+ }
     
 
 _ => Value::Error("ERR unknown command".to_string())
