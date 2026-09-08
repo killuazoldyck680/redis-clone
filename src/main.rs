@@ -1728,7 +1728,13 @@ Value::SimpleString("OK".to_string())
     }
 } 
  "subscribe" => {
-
+    for arg in args {
+        let channel_name = match arg {
+            Value::BulkString(bytes),
+            Value::SimpleString(s) => s,
+            _ => continue,
+        }
+    }
  }
     
 
@@ -1739,7 +1745,7 @@ _ => Value::Error("ERR unknown command".to_string())
   
 
 
-async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>) {
+async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>, sub_registry: &Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>) {
     
    let std_stream = stream.into_std().expect("failed to convert to std stream");
 let std_clone = std_stream.try_clone().expect("failed to clone std stream");
