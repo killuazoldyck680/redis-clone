@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env::args;
 use std::fmt::format;
 use std::fs::{File, create_dir};
@@ -398,7 +398,7 @@ async fn main() {
                                     &dummy_write_half,
                                     Arc::new(Mutex::new(0)),
                                     Arc::new(config.clone()),
-                                    Arc::new(None),
+                                    Arc::new(None, ), Arc::clone(&sub_registry), &mut HashSet::new()
                                 )
                                 .await;
                             }
@@ -1747,6 +1747,8 @@ let std_clone = std_stream.try_clone().expect("failed to clone std stream");
 let mut stream = TcpStream::from_std(std_stream).expect("failed to convert back to tokio stream");
 let writer_stream = TcpStream::from_std(std_clone).expect("failed to convert clone to tokio stream");
 let write_half = Arc::new(Mutex::new(writer_stream));
+
+    let mut local_subscriptions = HashSet::new();
     let mut handler = resp::RespHandler::new(stream);
 
     let mut in_transaction = false;
@@ -1754,6 +1756,8 @@ let write_half = Arc::new(Mutex::new(writer_stream));
     let mut watched_versions: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
     println!("Starting read loop");
+
+
 
     loop {
         println!("1. Reading value from socket...");
@@ -1866,7 +1870,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                     Value::SimpleString("OK".to_string())
                 }
 
-                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config), Arc::clone(&active_aof_path)).await,
+                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config), Arc::clone(&active_aof_path), Arc::clone(&sub_registry), &mut local_subscriptions).await,
             }
         };
 
