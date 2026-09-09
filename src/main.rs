@@ -1730,11 +1730,39 @@ Value::SimpleString("OK".to_string())
  "subscribe" => {
     for arg in args {
         let channel_name = match arg {
-            Value::BulkString(bytes),
+            Value::BulkString(bytes) => String::from_utf8_lossy(&bytes).to_string(),
             Value::SimpleString(s) => s,
             _ => continue,
+        };
+
+        local_subscriptions.insert(channel_name.clone());
+
+        let count = local_subscriptions.len() as i64;
+
+
+        {
+            let mut registry = sub_registry.lock().unwrap();
+
+            registry.entry(channel_name.clone())
+            .or_default()
+            .push(tx.clone());kk
         }
+
+        let response = Value::Array(vec![
+            Value::BulkString("subscribe".into()),
+            Value::BulkString(channel_name.into()),
+            Value::Integer(count),
+        ]);
+
+        let payload = response.encode();
+        write_half.write_all(&payload).await?;
+        write_half.flush().await?;
+
+
+
     }
+
+    Value::Null
  }
     
 
