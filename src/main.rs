@@ -1745,7 +1745,7 @@ Value::SimpleString("OK".to_string())
 
             registry.entry(channel_name.clone())
             .or_default()
-            .push(t.clone());
+            .push(tx.clone());
         }
 
         let response = Value::Array(vec![
