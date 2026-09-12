@@ -1743,7 +1743,7 @@ Value::SimpleString("OK".to_string())
         {
             let mut registry = sub_registry.lock().unwrap();
 
-            registry.entry(channel_name.clone())kk
+            registry.entry(channel_name.clone())
             .or_default()
             .push(tx.clone());
         }
