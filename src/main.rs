@@ -1761,7 +1761,7 @@ Value::SimpleString("OK".to_string())
 
 
     }
-
+jj
     Value::Null
  }
     
@@ -1783,7 +1783,7 @@ let writer_stream = TcpStream::from_std(std_clone).expect("failed to convert clo
 let write_half = Arc::new(Mutex::new(writer_stream));
 
     let mut local_subscriptions = HashSet::new();
-    let mut handler = resp::RespHandler::new(stream);
+    let mut handler = resp::RespHandler::new(stream); 
 
     let mut in_transaction = false;
     let mut command_queue: Vec<Value> = Vec::new();
