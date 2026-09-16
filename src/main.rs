@@ -369,6 +369,7 @@ async fn main() {
                 std_stream.set_nonblocking(true).unwrap();
 
                 let tokio_stream = tokio::net::TcpStream::from_std(std_stream).unwrap();
+                
                 let dummy_write_half = Arc::new(std::sync::Mutex::new(tokio_stream));
                 let dummy_replicas = Arc::new(Mutex::new(Vec::new()));
 
@@ -388,6 +389,7 @@ async fn main() {
                                 };
 
                                 let args = elements[1..].to_vec();
+                                let (dummy_tx, _) = tokio::sync::mpsc::unbounded_channel();
 
                                 execute_command(
                                     &command,
@@ -395,10 +397,13 @@ async fn main() {
                                     &db,
                                     false,
                                     &dummy_replicas,
-                                    &dummy_write_half,
+                                    Arc::clone(&dummy_write_half),
                                     Arc::new(Mutex::new(0)),
                                     Arc::new(config.clone()),
-                                    Arc::new(None, ), Arc::clone(&sub_registry), &mut HashSet::new()
+                                    Arc::new(None),
+                                    Arc::clone(&sub_registry),
+                                    &mut HashSet::new(),
+                                    &dummy_tx,
                                 )
                                 .await;
                             }
@@ -427,72 +432,87 @@ async fn main() {
 
     let replicas: ReplicaList = Arc::new(Mutex::new(Vec::new()));
     let master_repl_offset = Arc::new(Mutex::new(0usize));
-if let Some((master_host, master_port)) = replica_info {
-    let master_addr = format!("{master_host}:{master_port}");
-    let port_clone = port.clone();
 
-    let db_master = Arc::clone(&db);
-    let replicas_master = Arc::clone(&replicas);
-    let offset_master = Arc::clone(&master_repl_offset);
-    let config_master = Arc::clone(&config);
-    let aof_master = Arc::clone(&active_aof_path);
+    if let Some((master_host, master_port)) = replica_info {
+        let master_addr = format!("{master_host}:{master_port}");
+        let port_clone = port.clone();
 
-    tokio::spawn(async move {
-        println!("Connecting to master at {master_addr}...");
-        match TcpStream::connect(&master_addr).await {
-            Ok(stream) => {
-                let mut reader = tokio::io::BufReader::new(stream);
-                let mut line = String::new();
+        let db_master = Arc::clone(&db);
+        let replicas_master = Arc::clone(&replicas);
+        let offset_master = Arc::clone(&master_repl_offset);
+        let config_master = Arc::clone(&config);
+        let aof_master = Arc::clone(&active_aof_path);
+        let sub_registry_master = Arc::clone(&sub_registry);
 
-                // 1. PING
-                let ping_cmd = "*1\r\n$4\r\nPING\r\n";
-                if reader.write_all(ping_cmd.as_bytes()).await.is_err() || reader.flush().await.is_err() {
-                    eprintln!("Failed to send PING to master");
-                    return;
-                }
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
-                println!("Master response to PING: {}", line.trim());
+        tokio::spawn(async move {
+    println!("Connecting to master at {master_addr}...");
+    match TcpStream::connect(&master_addr).await {
+        Ok(mut stream) => {
+            // Wrap stream in BufReader for convenient line/exact reads
+            let mut reader = tokio::io::BufReader::new(stream);
+            let mut line = String::new();
 
-                // 2. REPLCONF listening-port
-                let replconf_port = format!(
-                    "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n",
-                    port_clone.len(),
-                    port_clone
-                );
-                if reader.write_all(replconf_port.as_bytes()).await.is_err() || reader.flush().await.is_err() {
-                    eprintln!("Failed to send REPLCONF listening-port");
-                    return;
-                }
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
-                println!("Master response to REPLCONF port: {}", line.trim());
+            // 1. PING
+            let ping_cmd = "*1\r\n$4\r\nPING\r\n";
+            if reader.write_all(ping_cmd.as_bytes()).await.is_err() || reader.flush().await.is_err() {
+                eprintln!("Failed to send PING to master");
+                return;
+            }
+            line.clear();
+            if reader.read_line(&mut line).await.is_err() {
+                eprintln!("Failed to read PING response from master");
+                return;
+            }
+            println!("Master response to PING: {}", line.trim());
 
-                // 3. REPLCONF capa psync2
-                let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
-                if reader.write_all(replconf_capa.as_bytes()).await.is_err() || reader.flush().await.is_err() {
-                    eprintln!("Failed to send REPLCONF capa");
-                    return;
-                }
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
-                println!("Master response to REPLCONF capa: {}", line.trim());
+            // 2. REPLCONF listening-port
+            let replconf_port = format!(
+                "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n",
+                port_clone.len(),
+                port_clone
+            );
+            if reader.write_all(replconf_port.as_bytes()).await.is_err() || reader.flush().await.is_err() {
+                eprintln!("Failed to send REPLCONF listening-port");
+                return;
+            }
+            line.clear();
+            if reader.read_line(&mut line).await.is_err() {
+                eprintln!("Failed to read REPLCONF port response");
+                return;
+            }
+            println!("Master response to REPLCONF port: {}", line.trim());
 
-                // 4. PSYNC
-                let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
-                if reader.write_all(psync.as_bytes()).await.is_err() || reader.flush().await.is_err() {
-                    eprintln!("Failed to send PSYNC");
-                    return;
-                }
+            // 3. REPLCONF capa psync2
+            let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
+            if reader.write_all(replconf_capa.as_bytes()).await.is_err() || reader.flush().await.is_err() {
+                eprintln!("Failed to send REPLCONF capa");
+                return;
+            }
+            line.clear();
+            if reader.read_line(&mut line).await.is_err() {
+                eprintln!("Failed to read REPLCONF capa response");
+                return;
+            }
+            println!("Master response to REPLCONF capa: {}", line.trim());
 
-                // Read +FULLRESYNC
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
-                println!("Master response to PSYNC: {}", line.trim());
+            // 4. PSYNC
+            let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
+            if reader.write_all(psync.as_bytes()).await.is_err() || reader.flush().await.is_err() {
+                eprintln!("Failed to send PSYNC");
+                return;
+            }
 
-                // Read RDB length header ($<len>)
-                line.clear();
-                let _ = reader.read_line(&mut line).await;
+            // Read +FULLRESYNC
+            line.clear();
+            if reader.read_line(&mut line).await.is_err() {
+                eprintln!("Failed to read PSYNC response");
+                return;
+            }
+            println!("Master response to PSYNC: {}", line.trim());
+
+            // Read RDB length header ($<len>)
+            line.clear();
+            if reader.read_line(&mut line).await.is_ok() {
                 let trimmed_rdb_line = line.trim();
                 println!("RDB Length Header: {trimmed_rdb_line}");
 
@@ -500,32 +520,37 @@ if let Some((master_host, master_port)) = replica_info {
                     if let Ok(rdb_len) = trimmed_rdb_line.trim_start_matches('$').parse::<usize>() {
                         println!("Reading {rdb_len} bytes of RDB payload...");
                         let mut rdb_buf = vec![0u8; rdb_len];
-                        let _ = reader.read_exact(&mut rdb_buf).await;
-                        println!("RDB payload read successfully!");
+                        if reader.read_exact(&mut rdb_buf).await.is_ok() {
+                            println!("RDB payload read successfully!");
+                        }
                     }
                 }
-
-                let stream = reader.into_inner();
-                println!("Handshake complete. Starting master replication loop...");
-
-                handle_conn(
-                    stream,
-                    db_master,
-                    true,
-                    replicas_master,
-                    true,
-                    offset_master,
-                    config_master,
-                    aof_master,
-                )
-                .await;
             }
-            Err(e) => {
-                eprintln!("Failed to connect to master at {master_addr}: {e}");
-            }
+
+            println!("Handshake complete. Starting master replication loop...");
+
+            // Extract original owned stream out of BufReader before passing to handle_conn
+            let stream = reader.into_inner();
+
+            handle_conn(
+                stream,
+                db_master,
+                true,
+                replicas_master,
+                true,
+                offset_master,
+                config_master,
+                aof_master,
+                &sub_registry_master,
+            )
+            .await;
         }
-    });
-}
+        Err(e) => {
+            eprintln!("Failed to connect to master at {master_addr}: {e}");
+        }
+    }
+});
+    }
 
     loop {
         let stream = listener.accept().await;
@@ -539,6 +564,7 @@ if let Some((master_host, master_port)) = replica_info {
                 let db_client = Arc::clone(&db);
                 let replicas_client = Arc::clone(&replicas);
                 let offset_client = Arc::clone(&master_repl_offset);
+                let sub_registry_clone = Arc::clone(&sub_registry);
 
                 tokio::spawn(async move {
                     handle_conn(
@@ -550,6 +576,7 @@ if let Some((master_host, master_port)) = replica_info {
                         offset_client,
                         config_clone,
                         aof_path_clone,
+                        &sub_registry_clone,
                     )
                     .await;
                 });
@@ -562,8 +589,7 @@ if let Some((master_host, master_port)) = replica_info {
 }
 
 
-
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>, sub_registry: &Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>,local_subscriptions: &mut HashSet<String>, tx: &tokio::sync::mpsc::UnboundedSender<Value>,) -> Value {
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>, sub_registry: Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>,local_subscriptions: &mut HashSet<String>, tx: &tokio::sync::mpsc::UnboundedSender<Value>,) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
     let sub_registry_clone = Arc::clone(&sub_registry);
@@ -1528,17 +1554,15 @@ Value::SimpleString("OK".to_string())
     payload.extend_from_slice(rdb_header.as_bytes());
     payload.extend_from_slice(&bytes);
 
-    // 3. Write payload using Tokio's AsyncWriteExt via try_write or synchronous socket buffer
-    use tokio::io::AsyncWriteExt;
+    // 3. Write synchronously inside a local scope (No .await = No Send error!)
     {
+        use std::io::Write;
         let mut writer = write_half.lock().unwrap();
-        // Option 1: If write_half is std::net::TcpStream or std::io::Write:
-        // let _ = writer.write_all(&payload);
         
-        // Option 2: If write_half is tokio::net::TcpStream:
-        // Use try_write to dump raw bytes straight to socket buffer synchronously
-        let _ = writer.try_write(&payload);
-    }
+        // Write all bytes directly to the underlying std/tokio socket stream
+        let _ = writer.write_all(&payload);
+        let _ = writer.flush();
+    } // Guard drops HERE before returning or hitting any future .await
 
     Value::None
 }
@@ -1870,7 +1894,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                             let mut results = Vec::new();
                             for queued_v in command_queue.drain(..) {
                                 let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config),Arc::clone(&active_aof_path)).await;
+                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, write_half, Arc::clone(&master_repl_offset), Arc::clone(&config),Arc::clone(&active_aof_path), sub_registry, &mut local_subscriptions, &tx).await;
                                 results.push(res);
                             }
                             Value::Array(results)
