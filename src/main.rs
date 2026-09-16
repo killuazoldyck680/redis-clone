@@ -1730,8 +1730,7 @@ Value::SimpleString("OK".to_string())
  "subscribe" => {
     for arg in args {
         let channel_name = match arg {
-            Value::BulkString(bytes) => String::from_utf8_lossy(&bytes).to_string(),
-            Value::SimpleString(s) => s,
+            Value::BulkString(s) | Value::SimpleString(s) => s,
             _ => continue,
         };
 
@@ -1757,8 +1756,8 @@ Value::SimpleString("OK".to_string())
         let payload = response.encode();
 
         let mut stream = write_half.lock().unwrap();
-        stream.write_all(&payload).unwrap();
-        stream.flush().unwrap();
+        stream.write_all(&payload).await?;
+        stream.flush().await?;
 
 
 
