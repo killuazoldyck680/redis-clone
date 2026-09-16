@@ -1747,12 +1747,7 @@ Value::SimpleString("OK".to_string())
             .push(tx.clone());
         }
 
-        let response = Value::Array(vec![
-            Value::BulkString("subscribe".into()),
-            Value::BulkString(channel_name.into()),
-            Value::Integer(count),
-        ]);
-
+        
         let payload = format!(
     "*3\r\n$9\r\nsubscribe\r\n${}\r\n{}\r\n:{}\r\n",
     channel_name.len(),
@@ -1761,14 +1756,18 @@ Value::SimpleString("OK".to_string())
 );
 
         let mut stream = write_half.lock().unwrap();
-        stream.write_all(payload.as_bytes()).await?;
-        stream.flush().await?;
-
-
+        if let Err(e) = stream.write_all(payload.as_bytes()).await {
+            eprintln!("Failed to write SUBSCRIBE response to socket: {}", e);
+            break;
+        }
+        if let Err(e) = stream.flush().await {
+            eprintln!("Failed to flush SUBSCRIBE response: {}", e);
+            break;
+        }
 
     }
 
-    Value::Null
+    Value::None
  }
     
 
