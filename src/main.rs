@@ -1759,40 +1759,36 @@ Value::SimpleString("OK".to_string())
         };
 
         local_subscriptions.insert(channel_name.clone());
-
         let count = local_subscriptions.len() as i64;
-
 
         {
             let mut registry = sub_registry.lock().unwrap();
-
             registry.entry(channel_name.clone())
-            .or_default()
-            .push(tx.clone());
+                .or_default()
+                .push(tx.clone());
         }
 
-        
         let payload = format!(
-    "*3\r\n$9\r\nsubscribe\r\n${}\r\n{}\r\n:{}\r\n",
-    channel_name.len(),
-    channel_name,
-    count
-);
+            "*3\r\n$9\r\nsubscribe\r\n${}\r\n{}\r\n:{}\r\n",
+            channel_name.len(),
+            channel_name,
+            count
+        );
 
-        let mut stream = write_half.lock().unwrap();
-        if let Err(e) = stream.write_all(payload.as_bytes()).await {
-            eprintln!("Failed to write SUBSCRIBE response to socket: {}", e);
+        // Lock, write synchronously with try_write, and immediately release the guard
+        let write_result = {
+            let stream = write_half.lock().unwrap();
+            stream.try_write(payload.as_bytes())
+        };
+
+        if let Err(e) = write_result {
+            eprintln!("Failed to write SUBSCRIBE response: {}", e);
             break;
         }
-        if let Err(e) = stream.flush().await {
-            eprintln!("Failed to flush SUBSCRIBE response: {}", e);
-            break;
-        }
-
     }
 
     Value::None
- }
+}
     
 
 _ => Value::Error("ERR unknown command".to_string())
@@ -1894,7 +1890,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                             let mut results = Vec::new();
                             for queued_v in command_queue.drain(..) {
                                 let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, write_half, Arc::clone(&master_repl_offset), Arc::clone(&config),Arc::clone(&active_aof_path), sub_registry, &mut local_subscriptions, &tx).await;
+                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, Arc::clone(&write_half), Arc::clone(&master_repl_offset), Arc::clone(&config),Arc::clone(&active_aof_path),Arc::clone(&sub_registry),  &mut local_subscriptions, &tx).await;
                                 results.push(res);
                             }
                             Value::Array(results)
@@ -1935,7 +1931,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                     Value::SimpleString("OK".to_string())
                 }
 
-                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config), Arc::clone(&active_aof_path), sub_registry, &mut local_subscriptions, &tx).await,
+                c => execute_command(c, args.clone(), &db, is_replica, &replicas, Arc::clone(&write_half), Arc::clone(&master_repl_offset), Arc::clone(&config), Arc::clone(&active_aof_path), Arc::clone(&sub_registry), &mut local_subscriptions, &tx).await,
             }
         };
 
