@@ -563,7 +563,7 @@ if let Some((master_host, master_port)) = replica_info {
 
 
 
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>, sub_regsitry: &Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>,local_subscriptions: &mut HashSet<String>) -> Value {
+async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: &Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>, sub_registry: &Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>,local_subscriptions: &mut HashSet<String>, tx: &tokio::sync::mpsc::UnboundedSender<Value>,) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
     let sub_registry_clone = Arc::clone(&sub_registry);
