@@ -1755,8 +1755,10 @@ Value::SimpleString("OK".to_string())
         ]);
 
         let payload = response.encode();
-        write_half.write_all(&payload).await?;
-        write_half.flush().await?;
+
+        let mut stream = write_half.lock().unwrap();
+        write_half.write_all(&payload).unwrap();
+        write_half.flush().unwrap();
 
 
 
