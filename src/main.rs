@@ -1783,6 +1783,8 @@ async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: Repl
    let std_stream = stream.into_std().expect("failed to convert to std stream");
 let std_clone = std_stream.try_clone().expect("failed to clone std stream");
 
+let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
+
 let mut stream = TcpStream::from_std(std_stream).expect("failed to convert back to tokio stream");
 let writer_stream = TcpStream::from_std(std_clone).expect("failed to convert clone to tokio stream");
 let write_half = Arc::new(Mutex::new(writer_stream));
@@ -1909,7 +1911,7 @@ let write_half = Arc::new(Mutex::new(writer_stream));
                     Value::SimpleString("OK".to_string())
                 }
 
-                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config), Arc::clone(&active_aof_path), Arc::clone(&sub_registry), &mut local_subscriptions).await,
+                c => execute_command(c, args.clone(), &db, is_replica, &replicas, &write_half, Arc::clone(&master_repl_offset), Arc::clone(&config), Arc::clone(&active_aof_path), sub_registry, &mut local_subscriptions, &tx).await,
             }
         };
 
