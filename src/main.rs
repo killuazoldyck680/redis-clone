@@ -1753,10 +1753,15 @@ Value::SimpleString("OK".to_string())
             Value::Integer(count),
         ]);
 
-        let payload = response.encode();
+        let payload = format!(
+    "*3\r\n$9\r\nsubscribe\r\n${}\r\n{}\r\n:{}\r\n",
+    channel_name.len(),
+    channel_name,
+    count
+);
 
         let mut stream = write_half.lock().unwrap();
-        stream.write_all(&payload).await?;
+        stream.write_all(payload.as_bytes()).await?;
         stream.flush().await?;
 
 
