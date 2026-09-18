@@ -1785,7 +1785,7 @@ Value::SimpleString("OK".to_string())
             eprintln!("Failed to write SUBSCRIBE response: {}", e);
             break;
         }
-    }
+    }jj
 
     Value::None
 }
