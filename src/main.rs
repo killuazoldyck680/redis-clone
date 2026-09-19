@@ -595,41 +595,48 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
     let sub_registry_clone = Arc::clone(&sub_registry);
 
     if !local_subscriptions.is_empty() {
-        let cmd_lower = command.to_lowercase();
+    let cmd_lower = command.to_lowercase();
 
-        match cmd_lower {
-           "subscribe" => {},
-           "psubscribe" => {},
-           "punsubscribe" => {},
-           "ping" => {
+    match cmd_lower.as_str() {
+        "subscribe" | "unsubscribe" | "psubscribe" | "punsubscribe" | "ping" | "quit" => {}
+        _ => {
+            let payload = format!(
+                "-ERR Can't execute '{}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT are allowed in this context\r\n",
+                cmd_lower
+            );
 
-           },
-           "quit" => {},
-           "unsubscribe" => {},
+            {
+                let stream = write_half.lock().unwrap();
+                let _ = stream.try_write(payload.as_bytes());
+            }
 
-           _  => {
-            let payload = format!("-ERR Can't execute '{}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT are allowed in this context\r\n", cmd_lower);
-
-            let write_result = {
-            let stream = write_half.lock().unwrap();
-            stream.try_write(payload.as_bytes())
-
-
-        };
-        return Value::None
-           }
+            return Value::None;
         }
     }
-
+}
     
     match command.to_lowercase().as_str() {
         "ping" => {
-          if !local_subscriptions.is_empty() {
-            let cmd_lower = command.to_lowercase();
+    if !local_subscriptions.is_empty() {
+        // Safely extract the optional argument or fallback to ""
+        let msg = args
+            .first()
+            .and_then(|arg| unpack_bulk_str(arg.clone()).ok())
+            .unwrap_or_default();
+
+        let payload = format!("*2\r\n$4\r\npong\r\n${}\r\n{}\r\n", msg.len(), msg);
+
+        {
+            let stream = write_half.lock().unwrap();
+            let _ = stream.try_write(payload.as_bytes());
         }
 
-        
+        return Value::None;
     }
+
+    // Normal mode behavior
+    Value::SimpleString("PONG".to_string())
+}
                 "echo" => args.first().unwrap().clone(),
 
 "set" => {
