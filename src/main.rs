@@ -595,7 +595,7 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
     let sub_registry_clone = Arc::clone(&sub_registry);
 
     if !local_subscriptions.is_empty() {
-        
+        let cmd_lower = command.to_lowercase();
     }
 
     
