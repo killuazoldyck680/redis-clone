@@ -596,6 +596,18 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
 
     if !local_subscriptions.is_empty() {
         let cmd_lower = command.to_lowercase();
+
+        match cmd_lower {
+           "subscribe" => {},
+           "psubscribe" => {},
+           "punsubscribe" => {},
+           "ping" => {},
+           "quit" => {},
+
+           _  => {
+            Value::SimpleString(format!("-ERR Can't execute '{}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT are allowed in this context\r\n", cmd_lower))
+           }
+        }
     }
 
     
