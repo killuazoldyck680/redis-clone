@@ -625,14 +625,11 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
     match command.to_lowercase().as_str() {
         "ping" => {
           if !local_subscriptions.is_empty() {
-            match args.first() {
-                Some(Value::BulkString(s)) => {s.clone()},
-                Some(Value::SimpleString(s)) => {s.clone()},
-
-                _ => { "" }
-            }
-          }
+            let cmd_lower = command.to_lowercase();
         }
+
+        
+    }
                 "echo" => args.first().unwrap().clone(),
 
 "set" => {
