@@ -602,26 +602,32 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
            "psubscribe" => {},
            "punsubscribe" => {},
            "ping" => {
-            
+
            },
            "quit" => {},
            "unsubscribe" => {},
 
            _  => {
-            let payload = format!("-ERR Can't execute '{}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT are allowed in this context\r\n", cmd_lower)
+            let payload = format!("-ERR Can't execute '{}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT are allowed in this context\r\n", cmd_lower);
 
             let write_result = {
             let stream = write_half.lock().unwrap();
             stream.try_write(payload.as_bytes())
-        };
 
+
+        };
+        return Value::None
            }
         }
     }
 
     
     match command.to_lowercase().as_str() {
-        "ping" => Value::SimpleString("PONG".to_string()),
+        "ping" => {
+          if !local_subscriptions.is_empty() {
+            
+          }
+        }
                 "echo" => args.first().unwrap().clone(),
 
 "set" => {
