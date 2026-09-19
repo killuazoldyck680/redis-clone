@@ -603,9 +603,10 @@ async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: b
            "punsubscribe" => {},
            "ping" => {},
            "quit" => {},
+           "unsubscribe" => {},
 
            _  => {
-            Value::SimpleString(format!("-ERR Can't execute '{}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT are allowed in this context\r\n", cmd_lower))
+             return Value::Error(format!("ERR Can't execute '{}': ...", cmd_lower))
            }
         }
     }
