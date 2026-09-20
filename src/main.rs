@@ -1844,13 +1844,17 @@ Value::SimpleString("OK".to_string())
 );
     let sub_lock = sub_registry.lock().unwrap();
 
-    if let Some(subscribers) = sub_lock.get(&channel_name) {
+    
+    let subscriber_count = if let Some(subscribers) = sub_lock.get(&channel_name) {
     for tx in subscribers {
-        let _ = tx.send(b_array.clone());
+        let _ = tx.send(Value::BulkString(b_array.clone()));
     }
-}
+    subscribers.len()
+} else {
+    0
+};
 
-    let subscriber_count = sub_lock.get(&channel_name).map_or(0, |subscribers| subscribers.len());
+
 
     println!("Subscribers for {channel_name}: {subscriber_count}");
 
