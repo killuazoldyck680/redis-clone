@@ -1,7 +1,8 @@
 use anyhow::Result;
 use bytes::BytesMut;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt}, net::{TcpStream, tcp::OwnedReadHalf},
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpStream, tcp::OwnedReadHalf},
 };
 
 #[derive(Clone, Debug)]
@@ -25,24 +26,26 @@ pub struct RespHandler {
 
 #[derive(Clone)]
 pub struct Config {
-    pub dir : String,
+    pub dir: String,
     pub dbfilename: String,
     pub appendonly: String,
     pub appenddirname: String,
     pub appendfsync: String,
-    pub appendfilename : String,
-    
+    pub appendfilename: String,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-        dir : std::env::current_dir().unwrap().to_string_lossy().to_string(),
-        dbfilename : String::from("dump.rdb"),
-        appendonly : String::from("no"),
-        appenddirname : String::from("appendonlydir"),
-        appendfsync:  String::from("everysec"),
-        appendfilename: String::from("appendonly.aof"),
+            dir: std::env::current_dir()
+                .unwrap()
+                .to_string_lossy()
+                .to_string(),
+            dbfilename: String::from("dump.rdb"),
+            appendonly: String::from("no"),
+            appenddirname: String::from("appendonlydir"),
+            appendfsync: String::from("everysec"),
+            appendfilename: String::from("appendonly.aof"),
         }
     }
 }
@@ -68,13 +71,13 @@ impl Value {
                 }
 
                 result
-            },
+            }
             Value::RdbFile(bytes) => {
-               let mut result = format!("${}\r\n", bytes.len()).into_bytes();
-               result.extend(bytes);
+                let mut result = format!("${}\r\n", bytes.len()).into_bytes();
+                result.extend(bytes);
 
-               result
-            },
+                result
+            }
             Value::Multiple(items) => {
                 let mut result = Vec::new();
 
@@ -83,11 +86,9 @@ impl Value {
                 }
 
                 result
+            }
 
-            },
-
-            Value::None => { Vec::new()},
-            
+            Value::None => Vec::new(),
         }
     }
 }
@@ -100,34 +101,34 @@ impl RespHandler {
         }
     }
 
-pub async fn read_value(&mut self) -> Result<Option<(Value, usize)>> {
-    loop {
-        if !self.buffer.is_empty() {
-            println!("--> Buffer has {} bytes. Parsing...", self.buffer.len());
-            match parse_message(self.buffer.clone()) {
-                Ok((v, bytes_consumed)) => {
-                    self.buffer.split_to(bytes_consumed);
-                    return Ok(Some((v, bytes_consumed)));
-                }
-                Err(e) => {
-                    println!("--> Parser needed more data or failed: {:?}", e); 
+    pub async fn read_value(&mut self) -> Result<Option<(Value, usize)>> {
+        loop {
+            if !self.buffer.is_empty() {
+                println!("--> Buffer has {} bytes. Parsing...", self.buffer.len());
+                match parse_message(self.buffer.clone()) {
+                    Ok((v, bytes_consumed)) => {
+                        self.buffer.split_to(bytes_consumed);
+                        return Ok(Some((v, bytes_consumed)));
+                    }
+                    Err(e) => {
+                        println!("--> Parser needed more data or failed: {:?}", e);
+                    }
                 }
             }
-        }
 
-        println!("--> Calling read_buf to wait for bytes...");
-        let bytes_read = self.stream.read_buf(&mut self.buffer).await?;
-        println!("--> Read {} bytes from socket", bytes_read);
+            println!("--> Calling read_buf to wait for bytes...");
+            let bytes_read = self.stream.read_buf(&mut self.buffer).await?;
+            println!("--> Read {} bytes from socket", bytes_read);
 
-        if bytes_read == 0 {
-            if self.buffer.is_empty() {
-                return Ok(None);
-            } else {
-                return Err(anyhow::anyhow!("Connection closed prematurely"));
+            if bytes_read == 0 {
+                if self.buffer.is_empty() {
+                    return Ok(None);
+                } else {
+                    return Err(anyhow::anyhow!("Connection closed prematurely"));
+                }
             }
         }
     }
-}
 
     pub async fn write_value(&mut self, value: Value) -> Result<()> {
         self.stream.write_all(&value.serialize()).await?;

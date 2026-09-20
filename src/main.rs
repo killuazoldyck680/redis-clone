@@ -1,21 +1,19 @@
+use crate::resp::parse_message;
+use bytes::BytesMut;
 use std::collections::{HashMap, HashSet};
 use std::env::args;
 use std::fmt::format;
 use std::fs::{File, create_dir};
+use std::io::Write;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc,Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, result, string, usize, vec};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
 use tokio::net::tcp::OwnedWriteHalf;
-use crate::resp::parse_message;
-use bytes::BytesMut;
-use std::io::Write;
-
-
+use tokio::net::{TcpListener, TcpStream};
 
 use anyhow::Result;
 use resp::Value;
@@ -41,9 +39,6 @@ struct DbValue {
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
 type ReplicaList = Arc<std::sync::Mutex<Vec<Arc<std::sync::Mutex<TcpStream>>>>>;
-
-
-
 
 // --- Helper Functions Moved to Module Scope ---
 
@@ -369,7 +364,7 @@ async fn main() {
                 std_stream.set_nonblocking(true).unwrap();
 
                 let tokio_stream = tokio::net::TcpStream::from_std(std_stream).unwrap();
-                
+
                 let dummy_write_half = Arc::new(std::sync::Mutex::new(tokio_stream));
                 let dummy_replicas = Arc::new(Mutex::new(Vec::new()));
 
@@ -420,7 +415,10 @@ async fn main() {
 
     let config = Arc::new(config);
 
-    println!("Loading RDB from dir: '{}', file: '{}'", config.dir, config.dbfilename);
+    println!(
+        "Loading RDB from dir: '{}', file: '{}'",
+        config.dir, config.dbfilename
+    );
     if let Err(e) = load_rdb_file(&config, Arc::clone(&db)) {
         eprintln!("Error loading RDB file: {}", e);
     }
@@ -445,111 +443,121 @@ async fn main() {
         let sub_registry_master = Arc::clone(&sub_registry);
 
         tokio::spawn(async move {
-    println!("Connecting to master at {master_addr}...");
-    match TcpStream::connect(&master_addr).await {
-        Ok(mut stream) => {
-            // Wrap stream in BufReader for convenient line/exact reads
-            let mut reader = tokio::io::BufReader::new(stream);
-            let mut line = String::new();
+            println!("Connecting to master at {master_addr}...");
+            match TcpStream::connect(&master_addr).await {
+                Ok(mut stream) => {
+                    // Wrap stream in BufReader for convenient line/exact reads
+                    let mut reader = tokio::io::BufReader::new(stream);
+                    let mut line = String::new();
 
-            // 1. PING
-            let ping_cmd = "*1\r\n$4\r\nPING\r\n";
-            if reader.write_all(ping_cmd.as_bytes()).await.is_err() || reader.flush().await.is_err() {
-                eprintln!("Failed to send PING to master");
-                return;
-            }
-            line.clear();
-            if reader.read_line(&mut line).await.is_err() {
-                eprintln!("Failed to read PING response from master");
-                return;
-            }
-            println!("Master response to PING: {}", line.trim());
+                    // 1. PING
+                    let ping_cmd = "*1\r\n$4\r\nPING\r\n";
+                    if reader.write_all(ping_cmd.as_bytes()).await.is_err()
+                        || reader.flush().await.is_err()
+                    {
+                        eprintln!("Failed to send PING to master");
+                        return;
+                    }
+                    line.clear();
+                    if reader.read_line(&mut line).await.is_err() {
+                        eprintln!("Failed to read PING response from master");
+                        return;
+                    }
+                    println!("Master response to PING: {}", line.trim());
 
-            // 2. REPLCONF listening-port
-            let replconf_port = format!(
-                "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n",
-                port_clone.len(),
-                port_clone
-            );
-            if reader.write_all(replconf_port.as_bytes()).await.is_err() || reader.flush().await.is_err() {
-                eprintln!("Failed to send REPLCONF listening-port");
-                return;
-            }
-            line.clear();
-            if reader.read_line(&mut line).await.is_err() {
-                eprintln!("Failed to read REPLCONF port response");
-                return;
-            }
-            println!("Master response to REPLCONF port: {}", line.trim());
+                    // 2. REPLCONF listening-port
+                    let replconf_port = format!(
+                        "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n",
+                        port_clone.len(),
+                        port_clone
+                    );
+                    if reader.write_all(replconf_port.as_bytes()).await.is_err()
+                        || reader.flush().await.is_err()
+                    {
+                        eprintln!("Failed to send REPLCONF listening-port");
+                        return;
+                    }
+                    line.clear();
+                    if reader.read_line(&mut line).await.is_err() {
+                        eprintln!("Failed to read REPLCONF port response");
+                        return;
+                    }
+                    println!("Master response to REPLCONF port: {}", line.trim());
 
-            // 3. REPLCONF capa psync2
-            let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
-            if reader.write_all(replconf_capa.as_bytes()).await.is_err() || reader.flush().await.is_err() {
-                eprintln!("Failed to send REPLCONF capa");
-                return;
-            }
-            line.clear();
-            if reader.read_line(&mut line).await.is_err() {
-                eprintln!("Failed to read REPLCONF capa response");
-                return;
-            }
-            println!("Master response to REPLCONF capa: {}", line.trim());
+                    // 3. REPLCONF capa psync2
+                    let replconf_capa = "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n";
+                    if reader.write_all(replconf_capa.as_bytes()).await.is_err()
+                        || reader.flush().await.is_err()
+                    {
+                        eprintln!("Failed to send REPLCONF capa");
+                        return;
+                    }
+                    line.clear();
+                    if reader.read_line(&mut line).await.is_err() {
+                        eprintln!("Failed to read REPLCONF capa response");
+                        return;
+                    }
+                    println!("Master response to REPLCONF capa: {}", line.trim());
 
-            // 4. PSYNC
-            let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
-            if reader.write_all(psync.as_bytes()).await.is_err() || reader.flush().await.is_err() {
-                eprintln!("Failed to send PSYNC");
-                return;
-            }
+                    // 4. PSYNC
+                    let psync = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
+                    if reader.write_all(psync.as_bytes()).await.is_err()
+                        || reader.flush().await.is_err()
+                    {
+                        eprintln!("Failed to send PSYNC");
+                        return;
+                    }
 
-            // Read +FULLRESYNC
-            line.clear();
-            if reader.read_line(&mut line).await.is_err() {
-                eprintln!("Failed to read PSYNC response");
-                return;
-            }
-            println!("Master response to PSYNC: {}", line.trim());
+                    // Read +FULLRESYNC
+                    line.clear();
+                    if reader.read_line(&mut line).await.is_err() {
+                        eprintln!("Failed to read PSYNC response");
+                        return;
+                    }
+                    println!("Master response to PSYNC: {}", line.trim());
 
-            // Read RDB length header ($<len>)
-            line.clear();
-            if reader.read_line(&mut line).await.is_ok() {
-                let trimmed_rdb_line = line.trim();
-                println!("RDB Length Header: {trimmed_rdb_line}");
+                    // Read RDB length header ($<len>)
+                    line.clear();
+                    if reader.read_line(&mut line).await.is_ok() {
+                        let trimmed_rdb_line = line.trim();
+                        println!("RDB Length Header: {trimmed_rdb_line}");
 
-                if trimmed_rdb_line.starts_with('$') {
-                    if let Ok(rdb_len) = trimmed_rdb_line.trim_start_matches('$').parse::<usize>() {
-                        println!("Reading {rdb_len} bytes of RDB payload...");
-                        let mut rdb_buf = vec![0u8; rdb_len];
-                        if reader.read_exact(&mut rdb_buf).await.is_ok() {
-                            println!("RDB payload read successfully!");
+                        if trimmed_rdb_line.starts_with('$') {
+                            if let Ok(rdb_len) =
+                                trimmed_rdb_line.trim_start_matches('$').parse::<usize>()
+                            {
+                                println!("Reading {rdb_len} bytes of RDB payload...");
+                                let mut rdb_buf = vec![0u8; rdb_len];
+                                if reader.read_exact(&mut rdb_buf).await.is_ok() {
+                                    println!("RDB payload read successfully!");
+                                }
+                            }
                         }
                     }
+
+                    println!("Handshake complete. Starting master replication loop...");
+
+                    // Extract original owned stream out of BufReader before passing to handle_conn
+                    let stream = reader.into_inner();
+
+                    handle_conn(
+                        stream,
+                        db_master,
+                        true,
+                        replicas_master,
+                        true,
+                        offset_master,
+                        config_master,
+                        aof_master,
+                        &sub_registry_master,
+                    )
+                    .await;
+                }
+                Err(e) => {
+                    eprintln!("Failed to connect to master at {master_addr}: {e}");
                 }
             }
-
-            println!("Handshake complete. Starting master replication loop...");
-
-            // Extract original owned stream out of BufReader before passing to handle_conn
-            let stream = reader.into_inner();
-
-            handle_conn(
-                stream,
-                db_master,
-                true,
-                replicas_master,
-                true,
-                offset_master,
-                config_master,
-                aof_master,
-                &sub_registry_master,
-            )
-            .await;
-        }
-        Err(e) => {
-            eprintln!("Failed to connect to master at {master_addr}: {e}");
-        }
-    }
-});
+        });
     }
 
     loop {
@@ -588,1297 +596,1311 @@ async fn main() {
     }
 }
 
-
-async fn execute_command(command: &str, args: Vec<Value>, db: &Db, is_replica: bool, replicas: &ReplicaList, write_half: Arc<std::sync::Mutex<TcpStream>>, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>, sub_registry: Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>,local_subscriptions: &mut HashSet<String>, tx: &tokio::sync::mpsc::UnboundedSender<Value>,) -> Value {
+async fn execute_command(
+    command: &str,
+    args: Vec<Value>,
+    db: &Db,
+    is_replica: bool,
+    replicas: &ReplicaList,
+    write_half: Arc<std::sync::Mutex<TcpStream>>,
+    master_repl_offset: Arc<Mutex<usize>>,
+    config: Arc<Config>,
+    active_aof_path: Arc<Option<PathBuf>>,
+    sub_registry: Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>,
+    local_subscriptions: &mut HashSet<String>,
+    tx: &tokio::sync::mpsc::UnboundedSender<Value>,
+) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
     let sub_registry_clone = Arc::clone(&sub_registry);
 
     if !local_subscriptions.is_empty() {
-    let cmd_lower = command.to_lowercase();
+        let cmd_lower = command.to_lowercase();
 
-    match cmd_lower.as_str() {
-        "subscribe" | "unsubscribe" | "psubscribe" | "punsubscribe" | "ping" | "quit" => {}
-        _ => {
-            let payload = format!(
-                "-ERR Can't execute '{}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT are allowed in this context\r\n",
-                cmd_lower
-            );
+        match cmd_lower.as_str() {
+            "subscribe" | "unsubscribe" | "psubscribe" | "punsubscribe" | "ping" | "quit" => {}
+            _ => {
+                let payload = format!(
+                    "-ERR Can't execute '{}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT are allowed in this context\r\n",
+                    cmd_lower
+                );
 
-            {
-                let stream = write_half.lock().unwrap();
-                let _ = stream.try_write(payload.as_bytes());
+                {
+                    let stream = write_half.lock().unwrap();
+                    let _ = stream.try_write(payload.as_bytes());
+                }
+
+                return Value::None;
             }
-
-            return Value::None;
         }
     }
-}
-    
+
     match command.to_lowercase().as_str() {
         "ping" => {
-    if !local_subscriptions.is_empty() {
-        // Safely extract the optional argument or fallback to ""
-        let msg = args
-            .first()
-            .and_then(|arg| unpack_bulk_str(arg.clone()).ok())
-            .unwrap_or_default();
+            if !local_subscriptions.is_empty() {
+                // Safely extract the optional argument or fallback to ""
+                let msg = args
+                    .first()
+                    .and_then(|arg| unpack_bulk_str(arg.clone()).ok())
+                    .unwrap_or_default();
 
-        let payload = format!("*2\r\n$4\r\npong\r\n${}\r\n{}\r\n", msg.len(), msg);
+                let payload = format!("*2\r\n$4\r\npong\r\n${}\r\n{}\r\n", msg.len(), msg);
 
-        {
-            let stream = write_half.lock().unwrap();
-            let _ = stream.try_write(payload.as_bytes());
+                {
+                    let stream = write_half.lock().unwrap();
+                    let _ = stream.try_write(payload.as_bytes());
+                }
+
+                return Value::None;
+            }
+
+            // Normal mode behavior
+            Value::SimpleString("PONG".to_string())
         }
+        "echo" => args.first().unwrap().clone(),
 
-        return Value::None;
-    }
+        "set" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let val = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-    // Normal mode behavior
-    Value::SimpleString("PONG".to_string())
-}
-                "echo" => args.first().unwrap().clone(),
+            let active_aof_path = Arc::clone(&active_aof_path);
 
-"set" => {
-    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-    let val = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+            let mut expires_at = None;
+            if let (Some(opt), Some(expiry_val)) = (args.get(2), args.get(3)) {
+                let raw_opt = unpack_bulk_str(opt.clone()).unwrap();
+                let clean_opt = raw_opt
+                    .trim_matches(|c: char| c == '\r' || c == '\n' || c.is_whitespace())
+                    .to_lowercase();
 
-    let active_aof_path = Arc::clone(&active_aof_path);
+                if clean_opt == "px" {
+                    let raw_ms = unpack_bulk_str(expiry_val.clone()).unwrap();
+                    let clean_ms =
+                        raw_ms.trim_matches(|c: char| c == '\r' || c == '\n' || c.is_whitespace());
 
-    let mut expires_at = None;
-    if let (Some(opt), Some(expiry_val)) = (args.get(2), args.get(3)) {
-        let raw_opt = unpack_bulk_str(opt.clone()).unwrap();
-        let clean_opt = raw_opt
-            .trim_matches(|c: char| c == '\r' || c == '\n' || c.is_whitespace())
-            .to_lowercase();
+                    if let Ok(ms) = clean_ms.parse::<u64>() {
+                        let now = Instant::now();
+                        let target_expiry = now + std::time::Duration::from_millis(ms);
 
-        if clean_opt == "px" {
-            let raw_ms = unpack_bulk_str(expiry_val.clone()).unwrap();
-            let clean_ms = raw_ms.trim_matches(|c: char| {
-                c == '\r' || c == '\n' || c.is_whitespace()
-            });
+                        println!("--> [DEBUG SET] Current Instant: {:?}", now);
+                        println!("--> [DEBUG SET] Adding Delay: {} ms", ms);
+                        println!("--> [DEBUG SET] Will Expire At: {:?}", target_expiry);
 
-            if let Ok(ms) = clean_ms.parse::<u64>() {
-                let now = Instant::now();
-                let target_expiry = now + std::time::Duration::from_millis(ms);
+                        expires_at = Some(target_expiry);
+                    }
+                }
+            }
 
-                println!("--> [DEBUG SET] Current Instant: {:?}", now);
-                println!("--> [DEBUG SET] Adding Delay: {} ms", ms);
-                println!("--> [DEBUG SET] Will Expire At: {:?}", target_expiry);
+            println!("3. Entering SET execution...");
+            println!("4. Waiting for DB lock...");
 
-                expires_at = Some(target_expiry);
+            // 1. Scope DB lock so it drops before network operations
+            {
+                let mut db_lock = db.lock().unwrap();
+                println!("5. DB lock acquired!");
+
+                let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
+
+                db_lock.insert(
+                    key.clone(),
+                    DbValue {
+                        value: DataType::Str(val.clone()),
+                        expires_at,
+                        version: new_version,
+                    },
+                );
+            }
+
+            // --- PROPAGATION TO REPLICAS ---
+            use std::io::Write; // <--- MUST BE IMPORTED
+
+            // --- PROPAGATION TO REPLICAS ---
+            // --- PROPAGATION TO REPLICAS ---
+            let cmd_bytes = format!(
+                "*{}\r\n${}\r\nSET\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
+                3,
+                3,
+                key.len(),
+                key,
+                val.len(),
+                val
+            );
+
+            let replica_handles: Vec<_> = {
+                let replicas_guard = replicas.lock().unwrap();
+                println!(
+                    "--> Broadcasting to {} registered replica(s)...",
+                    replicas_guard.len()
+                );
+                replicas_guard.clone()
+            };
+
+            for (idx, replica) in replica_handles.iter().enumerate() {
+                let mut writer = replica.lock().unwrap();
+
+                // try_write writes directly to the non-blocking socket buffer synchronously
+                match writer.try_write(cmd_bytes.as_bytes()) {
+                    Ok(bytes_written) => println!(
+                        "--> [Replica {}] Sent {} bytes successfully!",
+                        idx, bytes_written
+                    ),
+                    Err(e) => println!("--> [Replica {}] try_write FAILED: {:?}", idx, e),
+                }
+            }
+
+            let aof_cmd = vec!["SET".to_string(), key.clone(), val.clone()];
+
+            append_to_aof(&config, &active_aof_path, &aof_cmd);
+
+            Value::SimpleString("OK".to_string())
+        }
+        "get" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+            let mut db_lock = db.lock().unwrap();
+
+            let is_expired = if let Some(db_val) = db_lock.get(&key) {
+                if let Some(expiry) = db_val.expires_at {
+                    let now = Instant::now();
+
+                    // --- ADD THESE DIAGNOSTIC LOGS ---
+                    println!("--> [DEBUG GET] Current Instant: {:?}", now);
+                    println!("--> [DEBUG GET] Key Expiry Time: {:?}", expiry);
+                    println!("--> [DEBUG GET] Is Current > Expiry? {}", now > expiry);
+                    // ---------------------------------
+
+                    now > expiry
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            // 2. If it is expired, we remove it. The immutable borrow from above is completely gone here!
+            if is_expired {
+                db_lock.remove(&key);
+                Value::NullBulkString
+            } else {
+                // 3. Otherwise, fetch it normally
+                match db_lock.get(&key) {
+                    Some(db_val) => match &db_val.value {
+                        DataType::Str(s) => Value::BulkString(s.clone()),
+                        _ => Value::Error(
+                            "WRONGTYPE Operation against a key holding the wrong kind of value"
+                                .to_string(),
+                        ),
+                    },
+                    None => Value::NullBulkString,
+                }
             }
         }
-    }
+        "rpush" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-    println!("3. Entering SET execution...");
-    println!("4. Waiting for DB lock...");
+            let mut new_elements = Vec::new();
 
-    // 1. Scope DB lock so it drops before network operations
-    {
-        let mut db_lock = db.lock().unwrap();
-        println!("5. DB lock acquired!");
+            let mut aof_cmd = vec!["RPUSH".to_string(), key.clone()];
 
-        let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
+            for arg in args.into_iter().skip(1) {
+                if let Ok(element_str) = unpack_bulk_str(arg) {
+                    new_elements.push(element_str.clone());
+                    aof_cmd.push(element_str)
+                }
+            }
 
-        db_lock.insert(
-            key.clone(),
-            DbValue {
-                value: DataType::Str(val.clone()),
-                expires_at,
-                version: new_version,
-            },
-        ); 
-    } 
+            let mut db_lock = db.lock().unwrap();
 
-    // --- PROPAGATION TO REPLICAS ---
- use std::io::Write; // <--- MUST BE IMPORTED
+            let final_len = match db_lock.get_mut(&key) {
+                Some(db_val) => match &mut db_val.value {
+                    DataType::List(existing_list) => {
+                        existing_list.extend(new_elements);
+                        existing_list.len()
+                    }
+                    DataType::Str(_) => {
+                        panic!("WRONGTYPE Operation against a key holding the wrong kind of value");
+                    }
+                    _ => {
+                        panic!("Unexpected database type value found");
+                    }
+                },
 
-// --- PROPAGATION TO REPLICAS ---
-// --- PROPAGATION TO REPLICAS ---
-let cmd_bytes = format!(
-    "*{}\r\n${}\r\nSET\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
-    3, 3, key.len(), key, val.len(), val
-);
+                None => {
+                    let list_len = new_elements.len();
+                    let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
 
-let replica_handles: Vec<_> = {
-    let replicas_guard = replicas.lock().unwrap();
-    println!("--> Broadcasting to {} registered replica(s)...", replicas_guard.len());
-    replicas_guard.clone()
-};
+                    db_lock.insert(
+                        key,
+                        DbValue {
+                            value: DataType::List(new_elements),
+                            expires_at: None,
+                            version: new_version,
+                        },
+                    );
+                    list_len
+                }
+            };
 
-for (idx, replica) in replica_handles.iter().enumerate() {
-    let mut writer = replica.lock().unwrap();
+            drop(db_lock);
 
-    // try_write writes directly to the non-blocking socket buffer synchronously
-    match writer.try_write(cmd_bytes.as_bytes()) {
-        Ok(bytes_written) => println!("--> [Replica {}] Sent {} bytes successfully!", idx, bytes_written),
-        Err(e) => println!("--> [Replica {}] try_write FAILED: {:?}", idx, e),
-    }
-}
+            append_to_aof(&config, &active_aof_path, &aof_cmd);
 
-let aof_cmd = vec!["SET".to_string(), key.clone(), val.clone()];
+            Value::Integer(final_len as i64)
+        }
+        "lrange" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let start_index = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+            let stop_index = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
-append_to_aof(&config, &active_aof_path, &aof_cmd);
-    
+            let mut start_index = start_index.parse::<i64>().unwrap();
 
-Value::SimpleString("OK".to_string())
-}                "get" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let mut stop_index = stop_index.parse::<i64>().unwrap();
 
-                    let mut db_lock = db.lock().unwrap();
+            let db_lock = db.lock().unwrap();
 
-                    let is_expired = if let Some(db_val) = db_lock.get(&key) {
-                        if let Some(expiry) = db_val.expires_at {
-                            let now = Instant::now();
+            let final_key = match db_lock.get(&key) {
+                Some(db_val) => match &db_val.value {
+                    DataType::List(existing_list) => {
+                        let length = existing_list.len() as i64;
 
-                            // --- ADD THESE DIAGNOSTIC LOGS ---
-                            println!("--> [DEBUG GET] Current Instant: {:?}", now);
-                            println!("--> [DEBUG GET] Key Expiry Time: {:?}", expiry);
-                            println!("--> [DEBUG GET] Is Current > Expiry? {}", now > expiry);
-                            // ---------------------------------
+                        if start_index < 0 {
+                            start_index += length;
+                        }
+                        if stop_index < 0 {
+                            stop_index += length;
+                        }
+                        if start_index < 0 {
+                            start_index = 0;
+                        }
 
-                            now > expiry
+                        if stop_index < 0 {
+                            stop_index = 0;
+                        }
+
+                        if start_index >= length || start_index > stop_index {
+                            Value::Array(vec![])
                         } else {
-                            false
-                        }
-                    } else {
-                        false
-                    };
-
-                    // 2. If it is expired, we remove it. The immutable borrow from above is completely gone here!
-                    if is_expired {
-                        db_lock.remove(&key);
-                        Value::NullBulkString
-                    } else {
-                        // 3. Otherwise, fetch it normally
-                        match db_lock.get(&key) {
-                            Some(db_val) => match &db_val.value {
-                                DataType::Str(s) => Value::BulkString(s.clone()),
-                                _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
-                            },
-                            None => Value::NullBulkString,
+                            if stop_index >= length {
+                                stop_index = length - 1;
+                            }
+                            if let Some(element_slice) =
+                                existing_list.get(start_index as usize..=stop_index as usize)
+                            {
+                                Value::Array(
+                                    element_slice
+                                        .iter()
+                                        .map(|item| Value::BulkString(item.clone()))
+                                        .collect::<Vec<Value>>(),
+                                )
+                            } else {
+                                Value::Array(vec![])
+                            }
                         }
                     }
+
+                    _ => Value::Error(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value"
+                            .to_string(),
+                    ),
+                },
+
+                None => Value::Array(vec![]),
+            };
+
+            final_key
+        }
+        "lpush" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+            let mut new_elements = Vec::new();
+
+            let mut aof_cmd = vec!["LPUSH".to_string(), key.clone()];
+
+            for arg in args.into_iter().skip(1) {
+                if let Ok(element_str) = unpack_bulk_str(arg) {
+                    new_elements.push(element_str);
                 }
-                "rpush" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            }
 
-                    let mut new_elements = Vec::new();
+            let mut db_lock = db.lock().unwrap();
 
-                    let mut aof_cmd = vec!["RPUSH".to_string(), key.clone()];
-
-                    for arg in args.into_iter().skip(1) {
-                        if let Ok(element_str) = unpack_bulk_str(arg) {
-                            new_elements.push(element_str.clone());
-                            aof_cmd.push(element_str)
+            let final_list = match db_lock.get_mut(&key) {
+                Some(db_val) => match &mut db_val.value {
+                    DataType::List(existing_list) => {
+                        for item in new_elements {
+                            existing_list.insert(0, item);
                         }
+                        existing_list.len()
                     }
 
-                    let mut db_lock = db.lock().unwrap();
+                    DataType::Str(_) => {
+                        panic!("error");
+                    }
 
-                    let final_len = match db_lock.get_mut(&key) {
-                        Some(db_val) => match &mut db_val.value {
-                            DataType::List(existing_list) => {
-                                existing_list.extend(new_elements);
-                                existing_list.len()
-                            }
-                            DataType::Str(_) => {
-                                panic!(
-                                    "WRONGTYPE Operation against a key holding the wrong kind of value"
-                                );
-                            }
-                            _ => {
-                                panic!("Unexpected database type value found");
-                            }
+                    _ => {
+                        panic!("error")
+                    }
+                },
+
+                None => {
+                    let list_len = new_elements.len();
+
+                    let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
+
+                    db_lock.insert(
+                        key,
+                        DbValue {
+                            value: DataType::List(new_elements),
+                            expires_at: None,
+                            version: 0,
                         },
+                    );
+
+                    list_len
+                }
+            };
+
+            drop(db_lock);
+
+            append_to_aof(&config, &active_aof_path, &aof_cmd);
+
+            Value::Integer(final_list as i64)
+        }
+        "llen" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+            let db_lock = db.lock().unwrap();
+
+            let list_len = match db_lock.get(&key) {
+                Some(db_val) => match &db_val.value {
+                    DataType::List(existing_list) => existing_list.len(),
+
+                    _ => 0,
+                },
+                None => 0,
+            };
+
+            Value::Integer(list_len as i64)
+        }
+        "lpop" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+            let count_opt = args.get(1).cloned();
+
+            let count_opt = count_opt.map(|val| {
+                unpack_bulk_str(val.clone())
+                    .unwrap()
+                    .parse::<usize>()
+                    .unwrap()
+            });
+
+            let mut db_lock = db.lock().unwrap();
+
+            let popped_val = match db_lock.get_mut(&key) {
+                Some(db_val) => match &mut db_val.value {
+                    DataType::List(existing_list) => match count_opt {
+                        Some(count) => {
+                            let mut popped_elments = Vec::new();
+
+                            let iterations = std::cmp::min(count, existing_list.len());
+
+                            for _ in 0..iterations {
+                                let element = existing_list.remove(0);
+
+                                popped_elments.push(Value::BulkString(element));
+                            }
+                            Value::Array(popped_elments)
+                        }
 
                         None => {
-                            let list_len = new_elements.len();
-                            let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
-
-                            db_lock.insert(
-                                key,
-                                DbValue {
-                                     value: DataType::List(new_elements),
-                                    expires_at: None,
-                                    version: new_version,
-                                },
-                            );
-                            list_len
-                        }
-                    };
-
-                    drop(db_lock);
-
-                    append_to_aof(&config, &active_aof_path, &aof_cmd);
-
-                    Value::Integer(final_len as i64)
-                }
-                "lrange" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-                    let start_index = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-                    let stop_index = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
-
-                    let mut start_index = start_index.parse::<i64>().unwrap();
-
-                    let mut stop_index = stop_index.parse::<i64>().unwrap();
-
-                    let db_lock = db.lock().unwrap();
-
-                    let final_key = match db_lock.get(&key) {
-                        Some(db_val) => match &db_val.value {
-                            DataType::List(existing_list) => {
-                                let length = existing_list.len() as i64;
-
-                                if start_index < 0 {
-                                    start_index += length;
-                                }
-                                if stop_index < 0 {
-                                    stop_index += length;
-                                }
-                                if start_index < 0 {
-                                    start_index = 0;
-                                }
-
-                                if stop_index < 0 {
-                                    stop_index = 0;
-                                }
-
-                                if start_index >= length || start_index > stop_index {
-                                    Value::Array(vec![])
-                                } else {
-                                    if stop_index >= length {
-                                        stop_index = length - 1;
-                                    }
-                                    if let Some(element_slice) = existing_list
-                                        .get(start_index as usize..=stop_index as usize)
-                                    {
-                                        Value::Array(
-                                            element_slice
-                                                .iter()
-                                                .map(|item| Value::BulkString(item.clone()))
-                                                .collect::<Vec<Value>>(),
-                                        )
-                                    } else {
-                                        Value::Array(vec![])
-                                    }
-                                }
+                            if existing_list.is_empty() {
+                                Value::NullBulkString
+                            } else {
+                                Value::BulkString(existing_list.remove(0))
                             }
+                        }
+                    },
 
-                            _ => Value::Error(
-                                "WRONGTYPE Operation against a key holding the wrong kind of value"
-                                    .to_string(),
-                            ),
-                        },
+                    _ => Value::NullBulkString,
+                },
 
-                        None => Value::Array(vec![]),
-                    };
+                None => Value::NullBulkString,
+            };
+            popped_val
+        }
+        "blpop" => {
+            // Parse as f64 to properly handle decimal timeouts like 0.5
+            let timeout_secs = unpack_bulk_str(args.last().cloned().unwrap())
+                .unwrap()
+                .parse::<f64>()
+                .unwrap();
 
-                    final_key
-                }
-                "lpush" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let keys: Vec<String> = args[..args.len() - 1]
+                .iter()
+                .cloned()
+                .map(|val| unpack_bulk_str(val).unwrap())
+                .collect();
 
-                    let mut new_elements = Vec::new();
+            let timeout_duration = std::time::Duration::from_secs_f64(timeout_secs);
 
-                    let mut aof_cmd = vec!["LPUSH".to_string(), key.clone()];
+            // 1. Fast path check
+            let fast_path_val = {
+                let mut db_lock = db.lock().unwrap();
+                let mut found_val = None;
 
-                    for arg in args.into_iter().skip(1) {
-                        if let Ok(element_str) = unpack_bulk_str(arg) {
-                            new_elements.push(element_str);
+                for key in &keys {
+                    if let Some(db_val) = db_lock.get_mut(key) {
+                        if let DataType::List(existing_list) = &mut db_val.value {
+                            if !existing_list.is_empty() {
+                                let element = existing_list.remove(0);
+                                found_val = Some(Value::Array(vec![
+                                    Value::BulkString(key.clone()),
+                                    Value::BulkString(element),
+                                ]));
+                                break;
+                            }
                         }
                     }
-
-                    let mut db_lock = db.lock().unwrap();
-
-                    let final_list = match db_lock.get_mut(&key) {
-                        Some(db_val) => match &mut db_val.value {
-                            DataType::List(existing_list) => {
-                                for item in new_elements {
-                                    existing_list.insert(0, item);
-                                }
-                                existing_list.len()
-                            }
-
-                            DataType::Str(_) => {
-                                panic!("error");
-                            }
-
-                            _ => {
-                                panic!("error")
-                            }
-                        },
-
-                        None => {
-                            let list_len = new_elements.len();
-
-                            let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
-
-                            db_lock.insert(
-                                key,
-                                DbValue {
-                                    value: DataType::List(new_elements),
-                                    expires_at: None,
-                                    version: 0,
-                                },
-                            );
-
-                            list_len
-                        }
-                    };
-
-                    drop(db_lock);
-
-                    append_to_aof(&config, &active_aof_path, &aof_cmd);
-
-                    Value::Integer(final_list as i64)
                 }
-                "llen" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+                found_val
+            };
 
-                    let db_lock = db.lock().unwrap();
+            // 2. Evaluate fast-path or proceed to the polling loop
+            if let Some(response_val) = fast_path_val {
+                response_val
+            } else {
+                let start_time = std::time::Instant::now();
 
-                    let list_len = match db_lock.get(&key) {
-                        Some(db_val) => match &db_val.value {
-                            DataType::List(existing_list) => existing_list.len(),
-
-                            _ => 0,
-                        },
-                        None => 0,
-                    };
-
-                    Value::Integer(list_len as i64)
-                }
-                "lpop" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
-                    let count_opt = args.get(1).cloned();
-
-                    let count_opt = count_opt.map(|val| {
-                        unpack_bulk_str(val.clone())
-                            .unwrap()
-                            .parse::<usize>()
-                            .unwrap()
-                    });
-
-                    let mut db_lock = db.lock().unwrap();
-
-                    let popped_val = match db_lock.get_mut(&key) {
-                        Some(db_val) => match &mut db_val.value {
-                            DataType::List(existing_list) => match count_opt {
-                                Some(count) => {
-                                    let mut popped_elments = Vec::new();
-
-                                    let iterations = std::cmp::min(count, existing_list.len());
-
-                                    for _ in 0..iterations {
-                                        let element = existing_list.remove(0);
-
-                                        popped_elments.push(Value::BulkString(element));
-                                    }
-                                    Value::Array(popped_elments)
-                                }
-
-                                None => {
-                                    if existing_list.is_empty() {
-                                        Value::NullBulkString
-                                    } else {
-                                        Value::BulkString(existing_list.remove(0))
-                                    }
-                                }
-                            },
-
-                            _ => Value::NullBulkString,
-                        },
-
-                        None => Value::NullBulkString,
-                    };
-                    popped_val
-                }
-                "blpop" => {
-                    // Parse as f64 to properly handle decimal timeouts like 0.5
-                    let timeout_secs = unpack_bulk_str(args.last().cloned().unwrap())
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap();
-
-                    let keys: Vec<String> = args[..args.len() - 1]
-                        .iter()
-                        .cloned()
-                        .map(|val| unpack_bulk_str(val).unwrap())
-                        .collect();
-
-                    let timeout_duration = std::time::Duration::from_secs_f64(timeout_secs);
-
-                    // 1. Fast path check
-                    let fast_path_val = {
-                        let mut db_lock = db.lock().unwrap();
-                        let mut found_val = None;
+                let final_polled_val = loop {
+                    let popped_element = {
+                        let mut loop_db_lock = db.lock().unwrap();
+                        let mut found = None;
 
                         for key in &keys {
-                            if let Some(db_val) = db_lock.get_mut(key) {
+                            if let Some(db_val) = loop_db_lock.get_mut(key) {
                                 if let DataType::List(existing_list) = &mut db_val.value {
                                     if !existing_list.is_empty() {
                                         let element = existing_list.remove(0);
-                                        found_val = Some(Value::Array(vec![
-                                            Value::BulkString(key.clone()),
-                                            Value::BulkString(element),
-                                        ]));
+                                        found = Some((key.clone(), element));
                                         break;
                                     }
                                 }
                             }
                         }
-                        found_val
+                        found
                     };
 
-                    // 2. Evaluate fast-path or proceed to the polling loop
-                    if let Some(response_val) = fast_path_val {
-                        response_val
+                    if let Some((key_name, element_val)) = popped_element {
+                        break Value::Array(vec![
+                            Value::BulkString(key_name),
+                            Value::BulkString(element_val),
+                        ]);
+                    }
+
+                    // Correct timeout check using Duration comparison
+                    if timeout_secs > 0.0 && start_time.elapsed() >= timeout_duration {
+                        break Value::NullArray;
+                    }
+
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                };
+
+                final_polled_val
+            }
+        }
+
+        "type" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+            let mut db_lock = db.lock().unwrap();
+
+            let checked_val = match db_lock.get(&key) {
+                Some(db_val) => {
+                    if let Some(expiry) = db_val.expires_at {
+                        if Instant::now() > expiry {
+                            db_lock.remove(&key);
+                            Value::SimpleString("none".to_string())
+                        } else {
+                            match &db_val.value {
+                                DataType::Str(_) => Value::SimpleString("string".to_string()),
+                                DataType::List(_) => Value::SimpleString("list".to_string()),
+                                DataType::Stream(_) => Value::SimpleString("stream".to_string()),
+                            }
+                        }
                     } else {
-                        let start_time = std::time::Instant::now();
+                        match &db_val.value {
+                            DataType::Str(_) => Value::SimpleString("string".to_string()),
+                            DataType::List(_) => Value::SimpleString("list".to_string()),
+                            DataType::Stream(_) => Value::SimpleString("stream".to_string()),
+                        }
+                    }
+                }
+                None => Value::SimpleString("none".to_string()),
+            };
 
-                        let final_polled_val = loop {
-                            let popped_element = {
-                                let mut loop_db_lock = db.lock().unwrap();
-                                let mut found = None;
+            checked_val
+        }
 
-                                for key in &keys {
-                                    if let Some(db_val) = loop_db_lock.get_mut(key) {
-                                        if let DataType::List(existing_list) = &mut db_val.value {
-                                            if !existing_list.is_empty() {
-                                                let element = existing_list.remove(0);
-                                                found = Some((key.clone(), element));
-                                                break;
-                                            }
-                                        }
+        "xadd" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+            let (new_ms, second_str) = if id == "*" {
+                let new_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as u64;
+                (new_ms, "*".to_string())
+            } else {
+                let (first, second) = id.split_once('-').expect("missing hyphen");
+                let parsed_ms: u64 = first.parse().expect("invalid u64 for new_ms");
+                (parsed_ms, second.to_string())
+            };
+
+            let remaining_args = &args[2..];
+            let mut fields = Vec::new();
+
+            for chunk in remaining_args.chunks(2) {
+                if chunk.len() == 2 {
+                    let field_k = unpack_bulk_str(chunk[0].clone()).unwrap();
+                    let field_v = unpack_bulk_str(chunk[1].clone()).unwrap();
+                    fields.push((field_k, field_v));
+                }
+            }
+
+            let mut db_lock = db.lock().unwrap();
+
+            match db_lock.get_mut(&key) {
+                Some(db_val) => match &mut db_val.value {
+                    DataType::Stream(entries) => {
+                        if second_str == "*" {
+                            // Auto-generate sequence number
+                            let new_seq = match entries.last() {
+                                Some(last_entry) => {
+                                    let (f, s) = last_entry
+                                        .id
+                                        .as_str()
+                                        .split_once('-')
+                                        .expect("missing hyphen");
+                                    let last_ms: u64 = f.parse().expect("invalid u64 for last_ms");
+                                    let last_seq: u64 =
+                                        s.parse().expect("invalid u64 for last_seq");
+
+                                    if new_ms == last_ms {
+                                        last_seq + 1
+                                    } else {
+                                        if new_ms == 0 { 1 } else { 0 }
                                     }
                                 }
-                                found
+                                None => {
+                                    if new_ms == 0 {
+                                        1
+                                    } else {
+                                        0
+                                    }
+                                }
                             };
 
-                            if let Some((key_name, element_val)) = popped_element {
-                                break Value::Array(vec![
-                                    Value::BulkString(key_name),
-                                    Value::BulkString(element_val),
-                                ]);
-                            }
+                            let final_id = format!("{}-{}", new_ms, new_seq);
+                            let entry = StreamEntry {
+                                id: final_id.clone(),
+                                fields,
+                            };
+                            entries.push(entry);
+                            Value::BulkString(final_id)
+                        } else {
+                            // Explicit ID validation (e.g., 1000-1)
+                            let new_seq: u64 = second_str.parse().expect("invalid u64 for new_seq");
 
-                            // Correct timeout check using Duration comparison
-                            if timeout_secs > 0.0 && start_time.elapsed() >= timeout_duration {
-                                break Value::NullArray;
-                            }
+                            if new_ms == 0 && new_seq == 0 {
+                                Value::Error(
+                                    "ERR The ID specified in XADD must be greater than 0-0"
+                                        .to_string(),
+                                )
+                            } else if let Some(last_entry) = entries.last() {
+                                let (f, s) = last_entry
+                                    .id
+                                    .as_str()
+                                    .split_once('-')
+                                    .expect("missing hyphen");
+                                let last_ms: u64 = f.parse().expect("invalid u64 for last_ms");
+                                let last_seq: u64 = s.parse().expect("invalid u64 for last_seq");
 
-                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                        };
-
-                        final_polled_val
-                    }
-                }
-
-                "type" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
-                    let mut db_lock = db.lock().unwrap();
-
-                    let checked_val = match db_lock.get(&key) {
-                        Some(db_val) => {
-                            if let Some(expiry) = db_val.expires_at {
-                                if Instant::now() > expiry {
-                                    db_lock.remove(&key);
-                                    Value::SimpleString("none".to_string())
-                                } else {
-                                    match &db_val.value {
-                                        DataType::Str(_) => {
-                                            Value::SimpleString("string".to_string())
-                                        }
-                                        DataType::List(_) => {
-                                            Value::SimpleString("list".to_string())
-                                        }
-                                        DataType::Stream(_) => {
-                                            Value::SimpleString("stream".to_string())
-                                        }
-                                    }
-                                }
-                            } else {
-                                match &db_val.value {
-                                    DataType::Str(_) => {
-                                        Value::SimpleString("string".to_string())
-                                    }
-                                    DataType::List(_) => Value::SimpleString("list".to_string()),
-                                    DataType::Stream(_) => {
-                                        Value::SimpleString("stream".to_string())
-                                    }
-                                }
-                            }
-                        }
-                        None => Value::SimpleString("none".to_string()),
-                    };
-
-                    checked_val
-                }
-
-                "xadd" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-                    let id = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-                    let (new_ms, second_str) = if id == "*" {
-                        let new_ms = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_millis() as u64;
-                        (new_ms, "*".to_string())
-                    } else {
-                        let (first, second) = id.split_once('-').expect("missing hyphen");
-                        let parsed_ms: u64 = first.parse().expect("invalid u64 for new_ms");
-                        (parsed_ms, second.to_string())
-                    };
-
-                    let remaining_args = &args[2..];
-                    let mut fields = Vec::new();
-
-                    for chunk in remaining_args.chunks(2) {
-                        if chunk.len() == 2 {
-                            let field_k = unpack_bulk_str(chunk[0].clone()).unwrap();
-                            let field_v = unpack_bulk_str(chunk[1].clone()).unwrap();
-                            fields.push((field_k, field_v));
-                        }
-                    }
-
-                    let mut db_lock = db.lock().unwrap();
-
-                    match db_lock.get_mut(&key) {
-                        Some(db_val) => match &mut db_val.value {
-                            DataType::Stream(entries) => {
-                                if second_str == "*" {
-                                    // Auto-generate sequence number
-                                    let new_seq = match entries.last() {
-                                        Some(last_entry) => {
-                                            let (f, s) = last_entry
-                                                .id
-                                                .as_str()
-                                                .split_once('-')
-                                                .expect("missing hyphen");
-                                            let last_ms: u64 =
-                                                f.parse().expect("invalid u64 for last_ms");
-                                            let last_seq: u64 =
-                                                s.parse().expect("invalid u64 for last_seq");
-
-                                            if new_ms == last_ms {
-                                                last_seq + 1
-                                            } else {
-                                                if new_ms == 0 { 1 } else { 0 }
-                                            }
-                                        }
-                                        None => {
-                                            if new_ms == 0 {
-                                                1
-                                            } else {
-                                                0
-                                            }
-                                        }
-                                    };
-
-                                    let final_id = format!("{}-{}", new_ms, new_seq);
-                                    let entry = StreamEntry {
-                                        id: final_id.clone(),
-                                        fields,
-                                    };
-                                    entries.push(entry);
-                                    Value::BulkString(final_id)
-                                } else {
-                                    // Explicit ID validation (e.g., 1000-1)
-                                    let new_seq: u64 =
-                                        second_str.parse().expect("invalid u64 for new_seq");
-
-                                    if new_ms == 0 && new_seq == 0 {
-                                        Value::Error(
-                                            "ERR The ID specified in XADD must be greater than 0-0"
-                                                .to_string(),
-                                        )
-                                    } else if let Some(last_entry) = entries.last() {
-                                        let (f, s) = last_entry
-                                            .id
-                                            .as_str()
-                                            .split_once('-')
-                                            .expect("missing hyphen");
-                                        let last_ms: u64 =
-                                            f.parse().expect("invalid u64 for last_ms");
-                                        let last_seq: u64 =
-                                            s.parse().expect("invalid u64 for last_seq");
-
-                                        if new_ms < last_ms
-                                            || (new_ms == last_ms && new_seq <= last_seq)
-                                        {
-                                            Value::Error("ERR The ID specified in XADD is equal or smaller than the target stream top item".to_string())
-                                        } else {
-                                            let entry = StreamEntry {
-                                                id: id.clone(),
-                                                fields,
-                                            };
-                                            entries.push(entry);
-                                            Value::BulkString(id)
-                                        }
-                                    } else {
-                                        let entry = StreamEntry {
-                                            id: id.clone(),
-                                            fields,
-                                        };
-                                        entries.push(entry);
-                                        Value::BulkString(id)
-                                    }
-                                }
-                            }
-                            _ => Value::Error(
-                                "WRONGTYPE Operation against a key holding the wrong kind of value"
-                                    .to_string(),
-                            ),
-                        },
-                        None => {
-                            // New Stream Key
-                            if second_str == "*" {
-                                let new_seq = if new_ms == 0 { 1 } else { 0 };
-                                let final_id = format!("{}-{}", new_ms, new_seq);
-                                let entry = StreamEntry {
-                                    id: final_id.clone(),
-                                    fields,
-                                };
-                                let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
-                                db_lock.insert(
-                                    key,
-                                    DbValue {
-                                        value: DataType::Stream(vec![entry]),
-                                        expires_at: None,
-                                        version: new_version,
-                                    },
-                                );
-                                Value::BulkString(final_id)
-                            } else {
-                                let new_seq: u64 =
-                                    second_str.parse().expect("invalid u64 for new_seq");
-
-                                if new_ms == 0 && new_seq == 0 {
-                                    Value::Error(
-                                        "ERR The ID specified in XADD must be greater than 0-0"
-                                            .to_string(),
-                                    )
+                                if new_ms < last_ms || (new_ms == last_ms && new_seq <= last_seq) {
+                                    Value::Error("ERR The ID specified in XADD is equal or smaller than the target stream top item".to_string())
                                 } else {
                                     let entry = StreamEntry {
                                         id: id.clone(),
                                         fields,
                                     };
-                                    let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
-                                    db_lock.insert(
-                                        key,
-                                        DbValue {
-                                            value: DataType::Stream(vec![entry]),
-                                            expires_at: None,
-                                            version: new_version,
-                                        },
-                                    );
+                                    entries.push(entry);
                                     Value::BulkString(id)
                                 }
+                            } else {
+                                let entry = StreamEntry {
+                                    id: id.clone(),
+                                    fields,
+                                };
+                                entries.push(entry);
+                                Value::BulkString(id)
                             }
                         }
                     }
+                    _ => Value::Error(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value"
+                            .to_string(),
+                    ),
+                },
+                None => {
+                    // New Stream Key
+                    if second_str == "*" {
+                        let new_seq = if new_ms == 0 { 1 } else { 0 };
+                        let final_id = format!("{}-{}", new_ms, new_seq);
+                        let entry = StreamEntry {
+                            id: final_id.clone(),
+                            fields,
+                        };
+                        let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
+                        db_lock.insert(
+                            key,
+                            DbValue {
+                                value: DataType::Stream(vec![entry]),
+                                expires_at: None,
+                                version: new_version,
+                            },
+                        );
+                        Value::BulkString(final_id)
+                    } else {
+                        let new_seq: u64 = second_str.parse().expect("invalid u64 for new_seq");
+
+                        if new_ms == 0 && new_seq == 0 {
+                            Value::Error(
+                                "ERR The ID specified in XADD must be greater than 0-0".to_string(),
+                            )
+                        } else {
+                            let entry = StreamEntry {
+                                id: id.clone(),
+                                fields,
+                            };
+                            let new_version = db_lock.get(&key).map(|v| v.version).unwrap_or(0) + 1;
+                            db_lock.insert(
+                                key,
+                                DbValue {
+                                    value: DataType::Stream(vec![entry]),
+                                    expires_at: None,
+                                    version: new_version,
+                                },
+                            );
+                            Value::BulkString(id)
+                        }
+                    }
                 }
+            }
+        }
 
-                "xrange" => {
-                    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+        "xrange" => {
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-                    let raw_start = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+            let raw_start = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-                    let raw_end = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
+            let raw_end = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
-                    let (start_ms, start_seq) = if raw_start == "-" {
-                        (0, 0)
-                    } else if raw_start.contains('-') {
-                        let (l, r) = raw_start.split_once('-').expect("missing hyphen");
-                        (
-                            l.parse::<u64>().expect("failed to parse left part"),
-                            r.parse::<u64>().expect("failed to parse right part"),
-                        )
-                    } else {
-                        (raw_start.parse::<u64>().expect("invalid start_ms"), 0)
-                    };
+            let (start_ms, start_seq) = if raw_start == "-" {
+                (0, 0)
+            } else if raw_start.contains('-') {
+                let (l, r) = raw_start.split_once('-').expect("missing hyphen");
+                (
+                    l.parse::<u64>().expect("failed to parse left part"),
+                    r.parse::<u64>().expect("failed to parse right part"),
+                )
+            } else {
+                (raw_start.parse::<u64>().expect("invalid start_ms"), 0)
+            };
 
-                    let (end_ms, end_seq) = if raw_end == "+" {
-                        (u64::MAX, u64::MAX)
-                    } else if raw_end.contains('-') {
-                        let (l, r) = raw_end.split_once('-').expect("missing hyphen");
+            let (end_ms, end_seq) = if raw_end == "+" {
+                (u64::MAX, u64::MAX)
+            } else if raw_end.contains('-') {
+                let (l, r) = raw_end.split_once('-').expect("missing hyphen");
 
-                        (
-                            l.parse::<u64>().expect("invalid end_ms"),
-                            r.parse::<u64>().expect("invalid end_seq"),
-                        )
-                    } else {
-                        (
-                            raw_end.parse::<u64>().expect("invalid end_ms"),
-                            u64::MAX, // Default sequence for end ID
-                        )
-                    };
+                (
+                    l.parse::<u64>().expect("invalid end_ms"),
+                    r.parse::<u64>().expect("invalid end_seq"),
+                )
+            } else {
+                (
+                    raw_end.parse::<u64>().expect("invalid end_ms"),
+                    u64::MAX, // Default sequence for end ID
+                )
+            };
 
-                    let mut db_lock = db.lock().unwrap();
+            let mut db_lock = db.lock().unwrap();
 
-                    match db_lock.get_mut(&key) {
-                        Some(db_val) => match &db_val.value {
-                            DataType::Stream(entries) => {
-                                let mut result_entries = Vec::new();
+            match db_lock.get_mut(&key) {
+                Some(db_val) => match &db_val.value {
+                    DataType::Stream(entries) => {
+                        let mut result_entries = Vec::new();
 
-                                for entry in entries {
-                                    let (e_ms_str, e_seq_str) = entry.id.split_once('-').unwrap();
+                        for entry in entries {
+                            let (e_ms_str, e_seq_str) = entry.id.split_once('-').unwrap();
 
-                                    let entry_ms: u64 = e_ms_str.parse().unwrap();
+                            let entry_ms: u64 = e_ms_str.parse().unwrap();
 
-                                    let entry_seq: u64 = e_seq_str.parse().unwrap();
+                            let entry_seq: u64 = e_seq_str.parse().unwrap();
 
-                                    let is_after_start = (entry_ms > start_ms)
-                                        || (entry_ms == start_ms && entry_seq >= start_seq);
+                            let is_after_start = (entry_ms > start_ms)
+                                || (entry_ms == start_ms && entry_seq >= start_seq);
 
-                                    let is_before_end = (entry_ms < end_ms)
-                                        || (entry_ms == end_ms && entry_seq <= end_seq);
+                            let is_before_end =
+                                (entry_ms < end_ms) || (entry_ms == end_ms && entry_seq <= end_seq);
 
-                                    if is_after_start && is_before_end {
-                                        let mut fields_resp = Vec::new();
-                                        for (k, v) in &entry.fields {
-                                            fields_resp.push(Value::BulkString(k.clone()));
-                                            fields_resp.push(Value::BulkString(v.clone()));
-                                        }
-
-                                        result_entries.push(Value::Array(vec![
-                                            Value::BulkString(entry.id.clone()),
-                                            Value::Array(fields_resp),
-                                        ]));
-                                    }
+                            if is_after_start && is_before_end {
+                                let mut fields_resp = Vec::new();
+                                for (k, v) in &entry.fields {
+                                    fields_resp.push(Value::BulkString(k.clone()));
+                                    fields_resp.push(Value::BulkString(v.clone()));
                                 }
 
-                                Value::Array(result_entries)
+                                result_entries.push(Value::Array(vec![
+                                    Value::BulkString(entry.id.clone()),
+                                    Value::Array(fields_resp),
+                                ]));
                             }
+                        }
 
-                            _ => Value::Array(vec![]),
-                        },
-
-                        None => Value::Array(vec![]),
+                        Value::Array(result_entries)
                     }
-                }
 
-                "xread" => {
+                    _ => Value::Array(vec![]),
+                },
 
-
-    let mut block_ms: Option<u64> = None;
-    let mut stream_args_start_index = 1;
-
-    if let Some(first_arg) = args.get(0) {
-        let block_arg = unpack_bulk_str(first_arg.clone()).unwrap();
-        if block_arg.to_lowercase() == "block" {
-        let ms = unpack_bulk_str(args.get(1).cloned().unwrap())
-            .unwrap()
-            .parse::<u64>()
-            .unwrap();
-        block_ms = Some(ms);
-        stream_args_start_index = 3;
-    }
-
-    }
-
-    
-    
-
-    let stream_args = &args[stream_args_start_index..];
-    let num_streams = stream_args.len() / 2;
-    let (keys, ids) = stream_args.split_at(num_streams);
-
-    let mut resolved_ids : Vec<String> = Vec::new();
-
-    for i in 0..num_streams {
-        let key = unpack_bulk_str(keys.get(i).cloned().unwrap()).unwrap();
-        let id = unpack_bulk_str(ids.get(i).cloned().unwrap()).unwrap();
-
-        let resolved_id = if id.as_str() == "$" {
-    let db_lock = db.lock().unwrap();
-
-    let last_id = db_lock.get(&key).and_then(|db_val| {
-        if let DataType::Stream(entries) = &db_val.value {
-            entries.last().map(|e| e.id.clone())
-        } else {
-            None
+                None => Value::Array(vec![]),
+            }
         }
-    });
 
-    last_id.unwrap_or_else(|| "0-0".to_string())
-} else {
-    id
-}; 
+        "xread" => {
+            let mut block_ms: Option<u64> = None;
+            let mut stream_args_start_index = 1;
 
-        resolved_ids.push(resolved_id);
-    }
+            if let Some(first_arg) = args.get(0) {
+                let block_arg = unpack_bulk_str(first_arg.clone()).unwrap();
+                if block_arg.to_lowercase() == "block" {
+                    let ms = unpack_bulk_str(args.get(1).cloned().unwrap())
+                        .unwrap()
+                        .parse::<u64>()
+                        .unwrap();
+                    block_ms = Some(ms);
+                    stream_args_start_index = 3;
+                }
+            }
 
-    let read_streams = || {
-        let mut outer_results = Vec::new();
-        let db_lock = db.lock().unwrap();
+            let stream_args = &args[stream_args_start_index..];
+            let num_streams = stream_args.len() / 2;
+            let (keys, ids) = stream_args.split_at(num_streams);
 
-        for i in 0..num_streams {
-            let key = unpack_bulk_str(keys[i].clone()).unwrap();
-            let id = &resolved_ids[i];
+            let mut resolved_ids: Vec<String> = Vec::new();
 
-            let (l, r) = id.split_once('-').expect("missing hyphen");
-            let start_ms = l.parse::<u64>().expect("invalid start_ms");
-            let start_seq = r.parse::<u64>().expect("invalid start_seq");
+            for i in 0..num_streams {
+                let key = unpack_bulk_str(keys.get(i).cloned().unwrap()).unwrap();
+                let id = unpack_bulk_str(ids.get(i).cloned().unwrap()).unwrap();
 
-            if let Some(db_val) = db_lock.get(&key) {
-                if let DataType::Stream(entries) = &db_val.value {
-                    let mut result_entries = Vec::new();
+                let resolved_id = if id.as_str() == "$" {
+                    let db_lock = db.lock().unwrap();
 
-                    for entry in entries {
-                        let (e_ms_str, e_seq_str) = entry.id.split_once('-').unwrap();
-                        let entry_ms = e_ms_str.parse::<u64>().unwrap();
-                        let entry_seq = e_seq_str.parse::<u64>().unwrap();
+                    let last_id = db_lock.get(&key).and_then(|db_val| {
+                        if let DataType::Stream(entries) = &db_val.value {
+                            entries.last().map(|e| e.id.clone())
+                        } else {
+                            None
+                        }
+                    });
 
-                        let is_after = (entry_ms > start_ms)
-                            || (entry_ms == start_ms && entry_seq > start_seq);
+                    last_id.unwrap_or_else(|| "0-0".to_string())
+                } else {
+                    id
+                };
 
-                        if is_after {
-                            let mut fields_resp = Vec::new();
-                            for (k, v) in &entry.fields {
-                                fields_resp.push(Value::BulkString(k.clone()));
-                                fields_resp.push(Value::BulkString(v.clone()));
+                resolved_ids.push(resolved_id);
+            }
+
+            let read_streams = || {
+                let mut outer_results = Vec::new();
+                let db_lock = db.lock().unwrap();
+
+                for i in 0..num_streams {
+                    let key = unpack_bulk_str(keys[i].clone()).unwrap();
+                    let id = &resolved_ids[i];
+
+                    let (l, r) = id.split_once('-').expect("missing hyphen");
+                    let start_ms = l.parse::<u64>().expect("invalid start_ms");
+                    let start_seq = r.parse::<u64>().expect("invalid start_seq");
+
+                    if let Some(db_val) = db_lock.get(&key) {
+                        if let DataType::Stream(entries) = &db_val.value {
+                            let mut result_entries = Vec::new();
+
+                            for entry in entries {
+                                let (e_ms_str, e_seq_str) = entry.id.split_once('-').unwrap();
+                                let entry_ms = e_ms_str.parse::<u64>().unwrap();
+                                let entry_seq = e_seq_str.parse::<u64>().unwrap();
+
+                                let is_after = (entry_ms > start_ms)
+                                    || (entry_ms == start_ms && entry_seq > start_seq);
+
+                                if is_after {
+                                    let mut fields_resp = Vec::new();
+                                    for (k, v) in &entry.fields {
+                                        fields_resp.push(Value::BulkString(k.clone()));
+                                        fields_resp.push(Value::BulkString(v.clone()));
+                                    }
+
+                                    result_entries.push(Value::Array(vec![
+                                        Value::BulkString(entry.id.clone()),
+                                        Value::Array(fields_resp),
+                                    ]));
+                                }
                             }
 
-                            result_entries.push(Value::Array(vec![
-                                Value::BulkString(entry.id.clone()),
-                                Value::Array(fields_resp),
-                            ]));
+                            if !result_entries.is_empty() {
+                                outer_results.push(Value::Array(vec![
+                                    Value::BulkString(key),
+                                    Value::Array(result_entries),
+                                ]));
+                            }
                         }
                     }
+                }
 
-                    if !result_entries.is_empty() {
-                        outer_results.push(Value::Array(vec![
-                            Value::BulkString(key),
-                            Value::Array(result_entries),
-                        ]));
+                outer_results
+            };
+
+            let mut results = read_streams();
+
+            if results.is_empty() && block_ms.is_some() {
+                let timeout = block_ms.unwrap();
+                let start_time = std::time::Instant::now();
+
+                loop {
+                    if timeout > 0 && start_time.elapsed().as_millis() as u64 >= timeout {
+                        break;
+                    }
+
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+
+                    results = read_streams();
+                    if !results.is_empty() {
+                        break;
                     }
                 }
             }
-        }
 
-        outer_results
-    };
-
-    let mut results = read_streams();
-
-    
-    if results.is_empty() && block_ms.is_some() {
-        let timeout = block_ms.unwrap();
-        let start_time = std::time::Instant::now();
-
-        loop {
-            if timeout > 0 && start_time.elapsed().as_millis() as u64 >= timeout {
-                break;
-            }
-
-            std::thread::sleep(std::time::Duration::from_millis(20));
-
-            results = read_streams();
-            if !results.is_empty() {
-                break;
+            if results.is_empty() && block_ms.is_some() {
+                Value::NullArray
+            } else {
+                Value::Array(results)
             }
         }
-    }
-
-    if results.is_empty() && block_ms.is_some() {
-        Value::NullArray
-    } else {
-        Value::Array(results)
-    }
-} 
 
         "incr" => {
-           
             let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
             let result = {
-                
-           let mut db_lock = db.lock().unwrap();
+                let mut db_lock = db.lock().unwrap();
 
-           match db_lock.get_mut(&key)  {
-            Some(db_val) => {
-                if let DataType::Str(ref current_str) = db_val.value {
-                    match current_str.parse::<i64>() {
-                        Ok(mut num) => {
-                            num += 1;
-                            db_val.value = DataType::Str(num.to_string());
+                match db_lock.get_mut(&key) {
+                    Some(db_val) => {
+                        if let DataType::Str(ref current_str) = db_val.value {
+                            match current_str.parse::<i64>() {
+                                Ok(mut num) => {
+                                    num += 1;
+                                    db_val.value = DataType::Str(num.to_string());
 
-                            Value::Integer(num)
-                        }
+                                    Value::Integer(num)
+                                }
 
-                        Err(_) => {
-                           Value::Error("ERR value is not an integer or out of range".to_string()) 
+                                Err(_) => Value::Error(
+                                    "ERR value is not an integer or out of range".to_string(),
+                                ),
+                            }
+                        } else {
+                            panic!("Value is not a string");
                         }
                     }
 
-                    
-                } else {
-                    panic!("Value is not a string");
+                    None => {
+                        db_lock.insert(
+                            key.clone(),
+                            DbValue {
+                                value: DataType::Str("1".to_string()),
+                                expires_at: None,
+                                version: 0,
+                            },
+                        );
+
+                        Value::Integer(1)
+                    }
                 }
-
-                
-            }
-
-            None => {
-                  db_lock.insert(key.clone(), DbValue { value: DataType::Str("1".to_string()), expires_at: None, version: 0 });
-
-                Value::Integer(1)
-            }
-
-            
-           }
             };
 
             if matches!(result, Value::Integer(_)) {
-              let aof_cmd = vec!["INCR".to_string(), key];
-        append_to_aof(&config, &active_aof_path, &aof_cmd);  
+                let aof_cmd = vec!["INCR".to_string(), key];
+                append_to_aof(&config, &active_aof_path, &aof_cmd);
             }
 
             result
-            
-
         }
-        "watch" => {
-            Value::SimpleString("OK".to_string())
-        }
+        "watch" => Value::SimpleString("OK".to_string()),
 
         "info" => {
-            let role = if is_replica {"slave"} else {"master"};
+            let role = if is_replica { "slave" } else { "master" };
 
+            let current_offset = *master_repl_offset.lock().unwrap();
 
-           let current_offset = *master_repl_offset.lock().unwrap();
-            
-            Value::BulkString(format!("# Replication\r\nrole:{role}\r\nmaster_replid:{master_replid}\r\nmaster_repl_offset:{current_offset}\r\n"))
-}
+            Value::BulkString(format!(
+                "# Replication\r\nrole:{role}\r\nmaster_replid:{master_replid}\r\nmaster_repl_offset:{current_offset}\r\n"
+            ))
+        }
 
-    "replconf" => {
-    let sub_cmd = args.get(0)
-        .and_then(|a| unpack_bulk_str(a.clone()).ok())
-        .unwrap_or_default()
-        .to_lowercase();
+        "replconf" => {
+            let sub_cmd = args
+                .get(0)
+                .and_then(|a| unpack_bulk_str(a.clone()).ok())
+                .unwrap_or_default()
+                .to_lowercase();
 
-    if sub_cmd == "listening-port" || sub_cmd == "capa" {
-        Value::SimpleString("OK".to_string())
-    } else if sub_cmd == "getack" {
-        let current_offset = *master_repl_offset.lock().unwrap();
+            if sub_cmd == "listening-port" || sub_cmd == "capa" {
+                Value::SimpleString("OK".to_string())
+            } else if sub_cmd == "getack" {
+                let current_offset = *master_repl_offset.lock().unwrap();
 
-        Value::Array(vec![
-            Value::BulkString("REPLCONF".to_string()),
-            Value::BulkString("ACK".to_string()),
-            Value::BulkString(current_offset.to_string()),
-        ])
-    } else {
-        Value::SimpleString("OK".to_string())
-    }
-}
-
- "psync" => {
-    // 1. Register replica stream
-    replicas.lock().unwrap().push(write_half.clone());
-
-    // 2. Build FULLRESYNC + RDB payload
-    let current_offset = *master_repl_offset.lock().unwrap();
-    let fullresync = format!("+FULLRESYNC {} {}\r\n", master_replid, current_offset);
-    let hex_str = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656d12c0101200fa0c616f662d626173656c6f6164696e67c000fe00fb0000ff89506c7e0c9202d7";
-    let bytes = hex::decode(hex_str).unwrap();
-    let rdb_header = format!("${}\r\n", bytes.len());
-
-    let mut payload = Vec::new();
-    payload.extend_from_slice(fullresync.as_bytes());
-    payload.extend_from_slice(rdb_header.as_bytes());
-    payload.extend_from_slice(&bytes);
-
-    // 3. Write synchronously inside a local scope (No .await = No Send error!)
-    {
-        use std::io::Write;
-        let mut writer = write_half.lock().unwrap();
-        
-        // Write all bytes directly to the underlying std/tokio socket stream
-        let _ = writer.write_all(&payload);
-        let _ = writer.flush();
-    } // Guard drops HERE before returning or hitting any future .await
-
-    Value::None
-}
-"wait" => {
-    let num_replicas: usize = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
-        Some(s) => match s.parse() {
-            Ok(n) => n,
-            Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
-        },
-        None => return Value::Error("ERR wrong number of arguments for 'wait' command".to_string()),
-    };
-
-    let timeout_ms: u64 = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
-        Some(s) => match s.parse() {
-            Ok(n) => n,
-            Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
-        },
-        None => return Value::Error("ERR wrong number of arguments for 'wait' command".to_string()),
-    };
-
-    let connected_replicas_count = replicas.lock().unwrap().len();
-    let target_offset = *master_repl_offset.lock().unwrap();
-
-    if num_replicas == 0 || connected_replicas_count == 0 {
-        Value::Integer(0)
-    } else if target_offset == 0 {
-        Value::Integer(connected_replicas_count as i64)
-    } else {
-        let replica_list = replicas.lock().unwrap().clone();
-
-        // 1. Send REPLCONF GETACK * using non-blocking try_write
-        let getack_cmd = b"*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n";
-        for stream_arc in replica_list.iter() {
-            let mut written = 0;
-            while written < getack_cmd.len() {
-                let res = {
-                    // Lock scope explicitly limited to this block
-                    let mut guard = stream_arc.lock().unwrap();
-                    guard.try_write(&getack_cmd[written..])
-                }; // <--- MutexGuard dropped HERE
-
-                match res {
-                    Ok(n) => written += n,
-                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        // Guard is gone, safe to .await sleep
-                        tokio::time::sleep(Duration::from_millis(1)).await;
-                    }
-                    _ => break,
-                }
+                Value::Array(vec![
+                    Value::BulkString("REPLCONF".to_string()),
+                    Value::BulkString("ACK".to_string()),
+                    Value::BulkString(current_offset.to_string()),
+                ])
+            } else {
+                Value::SimpleString("OK".to_string())
             }
         }
 
-        // 2. Poll for ACK responses using non-blocking try_read
-        let start_time = tokio::time::Instant::now();
-        let timeout = Duration::from_millis(timeout_ms);
-        let mut ack_count = 0;
+        "psync" => {
+            // 1. Register replica stream
+            replicas.lock().unwrap().push(write_half.clone());
 
-        for stream_arc in replica_list.iter() {
-            if ack_count >= num_replicas {
-                break;
-            }
+            // 2. Build FULLRESYNC + RDB payload
+            let current_offset = *master_repl_offset.lock().unwrap();
+            let fullresync = format!("+FULLRESYNC {} {}\r\n", master_replid, current_offset);
+            let hex_str = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656d12c0101200fa0c616f662d626173656c6f6164696e67c000fe00fb0000ff89506c7e0c9202d7";
+            let bytes = hex::decode(hex_str).unwrap();
+            let rdb_header = format!("${}\r\n", bytes.len());
 
-            let mut bytes_read = 0;
-            let mut buf = [0u8; 128];
+            let mut payload = Vec::new();
+            payload.extend_from_slice(fullresync.as_bytes());
+            payload.extend_from_slice(rdb_header.as_bytes());
+            payload.extend_from_slice(&bytes);
 
-            while start_time.elapsed() < timeout {
-                let res = {
-                    // Lock scope explicitly limited to this block
-                    let mut guard = stream_arc.lock().unwrap();
-                    guard.try_read(&mut buf)
-                }; // <--- MutexGuard dropped HERE
+            // 3. Write synchronously inside a local scope (No .await = No Send error!)
+            {
+                use std::io::Write;
+                let mut writer = write_half.lock().unwrap();
 
-                match res {
-                    Ok(n) if n > 0 => {
-                        bytes_read = n;
+                // Write all bytes directly to the underlying std/tokio socket stream
+                let _ = writer.write_all(&payload);
+                let _ = writer.flush();
+            } // Guard drops HERE before returning or hitting any future .await
+
+            Value::None
+        }
+        "wait" => {
+            let num_replicas: usize =
+                match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+                    Some(s) => match s.parse() {
+                        Ok(n) => n,
+                        Err(_) => {
+                            return Value::Error(
+                                "ERR value is not an integer or out of range".to_string(),
+                            );
+                        }
+                    },
+                    None => {
+                        return Value::Error(
+                            "ERR wrong number of arguments for 'wait' command".to_string(),
+                        );
+                    }
+                };
+
+            let timeout_ms: u64 = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+                Some(s) => match s.parse() {
+                    Ok(n) => n,
+                    Err(_) => {
+                        return Value::Error(
+                            "ERR value is not an integer or out of range".to_string(),
+                        );
+                    }
+                },
+                None => {
+                    return Value::Error(
+                        "ERR wrong number of arguments for 'wait' command".to_string(),
+                    );
+                }
+            };
+
+            let connected_replicas_count = replicas.lock().unwrap().len();
+            let target_offset = *master_repl_offset.lock().unwrap();
+
+            if num_replicas == 0 || connected_replicas_count == 0 {
+                Value::Integer(0)
+            } else if target_offset == 0 {
+                Value::Integer(connected_replicas_count as i64)
+            } else {
+                let replica_list = replicas.lock().unwrap().clone();
+
+                // 1. Send REPLCONF GETACK * using non-blocking try_write
+                let getack_cmd = b"*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n";
+                for stream_arc in replica_list.iter() {
+                    let mut written = 0;
+                    while written < getack_cmd.len() {
+                        let res = {
+                            // Lock scope explicitly limited to this block
+                            let mut guard = stream_arc.lock().unwrap();
+                            guard.try_write(&getack_cmd[written..])
+                        }; // <--- MutexGuard dropped HERE
+
+                        match res {
+                            Ok(n) => written += n,
+                            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                // Guard is gone, safe to .await sleep
+                                tokio::time::sleep(Duration::from_millis(1)).await;
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+
+                // 2. Poll for ACK responses using non-blocking try_read
+                let start_time = tokio::time::Instant::now();
+                let timeout = Duration::from_millis(timeout_ms);
+                let mut ack_count = 0;
+
+                for stream_arc in replica_list.iter() {
+                    if ack_count >= num_replicas {
                         break;
                     }
-                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        // Guard is gone, safe to .await sleep
-                        tokio::time::sleep(Duration::from_millis(2)).await;
-                    }
-                    _ => break,
-                }
-            }
 
-            if bytes_read > 0 {
-                let response = String::from_utf8_lossy(&buf[..bytes_read]);
-                if let Some(offset) = response
-                    .lines()
-                    .filter_map(|line| line.trim().parse::<usize>().ok())
-                    .last()
+                    let mut bytes_read = 0;
+                    let mut buf = [0u8; 128];
+
+                    while start_time.elapsed() < timeout {
+                        let res = {
+                            // Lock scope explicitly limited to this block
+                            let mut guard = stream_arc.lock().unwrap();
+                            guard.try_read(&mut buf)
+                        }; // <--- MutexGuard dropped HERE
+
+                        match res {
+                            Ok(n) if n > 0 => {
+                                bytes_read = n;
+                                break;
+                            }
+                            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                // Guard is gone, safe to .await sleep
+                                tokio::time::sleep(Duration::from_millis(2)).await;
+                            }
+                            _ => break,
+                        }
+                    }
+
+                    if bytes_read > 0 {
+                        let response = String::from_utf8_lossy(&buf[..bytes_read]);
+                        if let Some(offset) = response
+                            .lines()
+                            .filter_map(|line| line.trim().parse::<usize>().ok())
+                            .last()
+                        {
+                            if offset >= target_offset {
+                                ack_count += 1;
+                            }
+                        }
+                    }
+                }
+
+                Value::Integer(ack_count as i64)
+            }
+        }
+        "config" => {
+            let subcommand = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+                Some(s) => s.to_lowercase(),
+                None => {
+                    return Value::Error(
+                        "ERR wrong number of arguments for 'config' command".to_string(),
+                    );
+                }
+            };
+
+            let param = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+                Some(s) => s.to_lowercase(),
+                None => {
+                    return Value::Error(
+                        "ERR wrong number of arguments for 'config' command".to_string(),
+                    );
+                }
+            };
+            if subcommand == "get" {
+                match param.as_str() {
+                    "dir" => Value::Array(vec![
+                        Value::BulkString("dir".to_string()),
+                        Value::BulkString(config.dir.clone()),
+                    ]),
+
+                    "dbfilename" => Value::Array(vec![
+                        Value::BulkString("dbfilename".to_string()),
+                        Value::BulkString(config.dbfilename.clone()),
+                    ]),
+
+                    "appendonly" => Value::Array(vec![
+                        Value::BulkString("appendonly".to_string()),
+                        Value::BulkString(config.appendonly.clone()),
+                    ]),
+
+                    "appenddirname" => Value::Array(vec![
+                        Value::BulkString("appenddirname".to_string()),
+                        Value::BulkString(config.appenddirname.clone()),
+                    ]),
+
+                    "appendfilename" => Value::Array(vec![
+                        Value::BulkString("appendfilename".to_string()),
+                        Value::BulkString(config.appendfilename.clone()),
+                    ]),
+                    "appendfsync" => Value::Array(vec![
+                        Value::BulkString("appendfsync".to_string()),
+                        Value::BulkString(config.appendfsync.clone()),
+                    ]),
+
+                    _ => Value::Array(vec![]),
+                }
+            } else {
+                Value::Error("ERR unknown subcommand".to_string())
+            }
+        }
+
+        "keys" => {
+            let keys_args = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+                Some(s) => s,
+                None => {
+                    return Value::Error(
+                        "ERR wrong number of arguments for 'keys' command".to_string(),
+                    );
+                }
+            };
+
+            println!("KEYS pattern received: {:?}", keys_args);
+
+            if keys_args == "*" {
+                let db_lock = db.lock().unwrap();
+
+                // 1. DEBUG PRINT: Print raw keys in HashMap right now
+                println!(
+                    "RAW DB KEYS IN HASHMAP: {:?}",
+                    db_lock.keys().collect::<Vec<_>>()
+                );
+
+                let now = std::time::Instant::now();
+                let key_list: Vec<Value> = db_lock
+                    .iter()
+                    .filter(|(_, db_val)| {
+                        match db_val.expires_at {
+                            Some(expiry) => expiry > now, // Filter out expired keys
+                            None => true,                 // Keep non-expiring keys
+                        }
+                    })
+                    .map(|(k, _)| Value::BulkString(k.clone()))
+                    .collect();
+
+                println!("KEYS COUNT RETURNING: {}", key_list.len());
+
+                Value::Array(key_list)
+            } else {
+                Value::Array(vec![])
+            }
+        }
+        "subscribe" => {
+            for arg in args {
+                let channel_name = match arg {
+                    Value::BulkString(s) | Value::SimpleString(s) => s,
+                    _ => continue,
+                };
+
+                local_subscriptions.insert(channel_name.clone());
+                let count = local_subscriptions.len() as i64;
+
                 {
-                    if offset >= target_offset {
-                        ack_count += 1;
-                    }
+                    let mut registry = sub_registry.lock().unwrap();
+                    registry
+                        .entry(channel_name.clone())
+                        .or_default()
+                        .push(tx.clone());
+                }
+
+                let payload = format!(
+                    "*3\r\n$9\r\nsubscribe\r\n${}\r\n{}\r\n:{}\r\n",
+                    channel_name.len(),
+                    channel_name,
+                    count
+                );
+
+                // Lock, write synchronously with try_write, and immediately release the guard
+                let write_result = {
+                    let stream = write_half.lock().unwrap();
+                    stream.try_write(payload.as_bytes())
+                };
+
+                if let Err(e) = write_result {
+                    eprintln!("Failed to write SUBSCRIBE response: {}", e);
+                    break;
                 }
             }
+
+            Value::None
         }
 
-        Value::Integer(ack_count as i64)
-    }
-}
-    "config" => {
-        let subcommand = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
-            Some(s) => s.to_lowercase(),
-            None => return Value::Error("ERR wrong number of arguments for 'config' command".to_string()),
-        };
-        
-        let param = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
-        Some(s) => s.to_lowercase(),
-        None => return Value::Error("ERR wrong number of arguments for 'config' command".to_string()),
-    };
-        if subcommand == "get" {
-        match param.as_str() {
-          "dir" =>  Value::Array(vec![
-                Value::BulkString("dir".to_string()),
-                Value::BulkString(config.dir.clone()),
-            ]),
+        "publish" => {
+            let channel_name = args
+                .first()
+                .and_then(|arg| unpack_bulk_str(arg.clone()).ok())
+                .unwrap_or_default();
 
-            "dbfilename" =>  Value::Array(vec![
-                Value::BulkString("dbfilename".to_string()),
-                Value::BulkString(config.dbfilename.clone()),
-            ]),
+            let message_content = args
+                .get(1)
+                .and_then(|arg| unpack_bulk_str(arg.clone()).ok())
+                .unwrap_or_default();
 
-            "appendonly" => Value::Array(vec![
-                Value::BulkString("appendonly".to_string()),
-                Value::BulkString(config.appendonly.clone()),
-            ]),
+            let b_array = format!(
+                "*3\r\n$7\r\nmessage\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
+                channel_name.len(),
+                channel_name,
+                message_content.len(),
+                message_content
+            );
+            let sub_lock = sub_registry.lock().unwrap();
 
-            "appenddirname" => Value::Array(vec![
-                Value::BulkString("appenddirname".to_string()),
-                Value::BulkString(config.appenddirname.clone()),
-            ]),
-
-            "appendfilename" => Value::Array(vec![
-                Value::BulkString("appendfilename".to_string()),
-                Value::BulkString(config.appendfilename.clone()),
-            ]),
-            "appendfsync" => Value::Array(vec![
-                Value::BulkString("appendfsync".to_string()),
-                Value::BulkString(config.appendfsync.clone()),
-            ]),
-
-            _ => Value::Array(vec![]),
-
-
-
-        } 
-        
-        
-} else {
-    Value::Error("ERR unknown subcommand".to_string())
-}
-    }
-
-"keys" => {
-    let keys_args = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
-        Some(s) => s,
-        None => return Value::Error("ERR wrong number of arguments for 'keys' command".to_string()),
-    };
-
-    println!("KEYS pattern received: {:?}", keys_args);
-
-    if keys_args == "*" {
-        let db_lock = db.lock().unwrap();
-
-        // 1. DEBUG PRINT: Print raw keys in HashMap right now
-        println!("RAW DB KEYS IN HASHMAP: {:?}", db_lock.keys().collect::<Vec<_>>());
-
-        let now = std::time::Instant::now();
-        let key_list: Vec<Value> = db_lock
-            .iter()
-            .filter(|(_, db_val)| {
-                match db_val.expires_at {
-                    Some(expiry) => expiry > now, // Filter out expired keys
-                    None => true,                  // Keep non-expiring keys
+            let subscriber_count = if let Some(subscribers) = sub_lock.get(&channel_name) {
+                for tx in subscribers {
+                    let _ = tx.send(Value::BulkString(b_array.clone()));
                 }
-            })
-            .map(|(k, _)| Value::BulkString(k.clone()))
-            .collect();
+                subscribers.len()
+            } else {
+                0
+            };
 
-        println!("KEYS COUNT RETURNING: {}", key_list.len());
+            println!("Subscribers for {channel_name}: {subscriber_count}");
 
-        Value::Array(key_list)
-    } else {
-        Value::Array(vec![])
-    }
-} 
- "subscribe" => {
-    for arg in args {
-        let channel_name = match arg {
-            Value::BulkString(s) | Value::SimpleString(s) => s,
-            _ => continue,
-        };
-
-        local_subscriptions.insert(channel_name.clone());
-        let count = local_subscriptions.len() as i64;
-
-        {
-            let mut registry = sub_registry.lock().unwrap();
-            registry.entry(channel_name.clone())
-                .or_default()
-                .push(tx.clone());
-        }
-
-        let payload = format!(
-            "*3\r\n$9\r\nsubscribe\r\n${}\r\n{}\r\n:{}\r\n",
-            channel_name.len(),
-            channel_name,
-            count
-        );
-
-        // Lock, write synchronously with try_write, and immediately release the guard
-        let write_result = {
+            let payload = format!(":{}\r\n", subscriber_count);
             let stream = write_half.lock().unwrap();
-            stream.try_write(payload.as_bytes())
-        };
-
-        if let Err(e) = write_result {
-            eprintln!("Failed to write SUBSCRIBE response: {}", e);
-            break;
+            let _ = stream.try_write(payload.as_bytes());
+            Value::None
         }
+
+        _ => Value::Error("ERR unknown command".to_string()),
     }
-
-    Value::None
 }
-
-"publish" => {
-    let channel_name = args.first().and_then(|arg| unpack_bulk_str(arg.clone()).ok()).unwrap_or_default();
-
-    let message_content = args.get(1).and_then(|arg| unpack_bulk_str(arg.clone()).ok()).unwrap_or_default();
-
-    let b_array = format!(
-    "*3\r\n$7\r\nmessage\r\n${}\r\n{}\r\n${}\r\n{}\r\n",
-    channel_name.len(),
-    channel_name,
-    message_content.len(),
-    message_content
-);
-    let sub_lock = sub_registry.lock().unwrap();
-
-    
-    let subscriber_count = if let Some(subscribers) = sub_lock.get(&channel_name) {
-    for tx in subscribers {
-        let _ = tx.send(Value::BulkString(b_array.clone()));
-    }
-    subscribers.len()
-} else {
-    0
-};
-
-
-
-    println!("Subscribers for {channel_name}: {subscriber_count}");
-
-    let payload = format!(":{}\r\n", subscriber_count);
-let stream = write_half.lock().unwrap();
-let _ = stream.try_write(payload.as_bytes());
-Value::None
-
-
-
-
-
-
-}
-
-
-    
-
-_ => Value::Error("ERR unknown command".to_string())
-}
-}
-
-  
-
 
 async fn handle_conn(
     stream: TcpStream,
@@ -1897,7 +1919,8 @@ async fn handle_conn(
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
 
     let stream = TcpStream::from_std(std_stream).expect("failed to convert back to tokio stream");
-    let writer_stream = TcpStream::from_std(std_clone).expect("failed to convert clone to tokio stream");
+    let writer_stream =
+        TcpStream::from_std(std_clone).expect("failed to convert clone to tokio stream");
     let write_half = Arc::new(Mutex::new(writer_stream));
 
     let mut local_subscriptions = HashSet::new();
@@ -1905,7 +1928,8 @@ async fn handle_conn(
 
     let mut in_transaction = false;
     let mut command_queue: Vec<Value> = Vec::new();
-    let mut watched_versions: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut watched_versions: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
 
     println!("Starting read loop");
 
@@ -2106,5 +2130,3 @@ fn unpack_bulk_str(value: Value) -> Result<String> {
         _ => Err(anyhow::anyhow!("Expected command to be a bulk string")),
     }
 }
-
-
