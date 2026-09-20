@@ -1835,6 +1835,14 @@ Value::SimpleString("OK".to_string())
 
     let sub_lock = sub_registry.lock().unwrap();
 
+    let subscriber_count = sub_lock.get(&channel_name).map_or(0, |subscribers| subscribers.len());
+
+    println!("Subscribers for {channel_name}: {subscriber_count}");
+
+    
+
+
+
 
 
 }
