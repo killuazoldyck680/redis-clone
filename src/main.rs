@@ -1880,19 +1880,28 @@ _ => Value::Error("ERR unknown command".to_string())
   
 
 
-async fn handle_conn(stream: TcpStream, db: Db, is_replica: bool, replicas: ReplicaList, is_master_connection: bool, master_repl_offset: Arc<Mutex<usize>>, config: Arc<Config>, active_aof_path: Arc<Option<PathBuf>>, sub_registry: &Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>) {
-    
-   let std_stream = stream.into_std().expect("failed to convert to std stream");
-let std_clone = std_stream.try_clone().expect("failed to clone std stream");
+async fn handle_conn(
+    stream: TcpStream,
+    db: Db,
+    is_replica: bool,
+    replicas: ReplicaList,
+    is_master_connection: bool,
+    master_repl_offset: Arc<Mutex<usize>>,
+    config: Arc<Config>,
+    active_aof_path: Arc<Option<PathBuf>>,
+    sub_registry: &Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>,
+) {
+    let std_stream = stream.into_std().expect("failed to convert to std stream");
+    let std_clone = std_stream.try_clone().expect("failed to clone std stream");
 
-let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
 
-let mut stream = TcpStream::from_std(std_stream).expect("failed to convert back to tokio stream");
-let writer_stream = TcpStream::from_std(std_clone).expect("failed to convert clone to tokio stream");
-let write_half = Arc::new(Mutex::new(writer_stream));
+    let stream = TcpStream::from_std(std_stream).expect("failed to convert back to tokio stream");
+    let writer_stream = TcpStream::from_std(std_clone).expect("failed to convert clone to tokio stream");
+    let write_half = Arc::new(Mutex::new(writer_stream));
 
     let mut local_subscriptions = HashSet::new();
-    let mut handler = resp::RespHandler::new(stream); 
+    let mut handler = resp::RespHandler::new(stream);
 
     let mut in_transaction = false;
     let mut command_queue: Vec<Value> = Vec::new();
@@ -1900,181 +1909,184 @@ let write_half = Arc::new(Mutex::new(writer_stream));
 
     println!("Starting read loop");
 
-
-
     loop {
-       tokio::select! {
-        Some(msg_val) = rx.recv() => {
-        if let Value::BulkString(payload) = msg_val {
-        let stream = write_half.lock().unwrap();
-        let _ = stream.try_write(payload.as_bytes());
-       
-       } else {
-            let _ = handler.write_value(msg_val).await;
-
-       }
-
-       }
-
-       read_res = handler.read_value() => {
-        let (value, bytes_read) = match read_res {
-        Ok(Some((v, bytes))) => (v,bytes),
-        _ => break,
-        
-        }
-
-       }
-
-
-
-
-
-        let cmd_name = command.trim().to_lowercase();
-        let is_getack = cmd_name == "replconf" && args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()).map(|s| s.to_lowercase() == "getack").unwrap_or(false);
-
-
-        let response = if in_transaction && cmd_name != "exec" && cmd_name != "discard" {
-            if cmd_name == "watch" {
-                Value::Error("ERR WATCH inside MULTI is not allowed".to_string())
-            } else {
-                command_queue.push(value);
-                Value::SimpleString("QUEUED".to_string())
-            }
-        } else {
-            match cmd_name.as_str() {
-                "multi" => {
-                    if in_transaction {
-                        Value::Error("ERR MULTI calls cannot be nested".to_string())
-                    } else {
-                        in_transaction = true;
-                        command_queue.clear();
-                        Value::SimpleString("OK".to_string())
-                    }
+        tokio::select! {
+            // Branch 1: Handle published messages dispatched to this client
+            Some(msg_val) = rx.recv() => {
+                if let Value::BulkString(payload) = msg_val {
+                    let stream = write_half.lock().unwrap();
+                    let _ = stream.try_write(payload.as_bytes());
+                } else {
+                    let _ = handler.write_value(msg_val).await;
                 }
+            }
 
-                "exec" => {
-                    if !in_transaction {
-                        Value::Error("ERR EXEC without MULTI".to_string())
+            // Branch 2: Handle incoming socket commands
+            read_res = handler.read_value() => {
+                let (value, bytes_read) = match read_res {
+                    Ok(Some((v, bytes))) => (v, bytes),
+                    _ => break, // Connection closed or socket error
+                };
+
+                let (command, args) = match extract_command(value.clone()) {
+                    Ok(cmd_tuple) => cmd_tuple,
+                    Err(_) => {
+                        let _ = handler.write_value(Value::Error("ERR bad protocol".to_string())).await;
+                        continue;
+                    }
+                };
+
+                let cmd_name = command.trim().to_lowercase();
+                let is_getack = cmd_name == "replconf"
+                    && args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()).map(|s| s.to_lowercase() == "getack").unwrap_or(false);
+
+                let response = if in_transaction && cmd_name != "exec" && cmd_name != "discard" {
+                    if cmd_name == "watch" {
+                        Value::Error("ERR WATCH inside MULTI is not allowed".to_string())
                     } else {
-                        in_transaction = false;
+                        command_queue.push(value);
+                        Value::SimpleString("QUEUED".to_string())
+                    }
+                } else {
+                    match cmd_name.as_str() {
+                        "multi" => {
+                            if in_transaction {
+                                Value::Error("ERR MULTI calls cannot be nested".to_string())
+                            } else {
+                                in_transaction = true;
+                                command_queue.clear();
+                                Value::SimpleString("OK".to_string())
+                            }
+                        }
 
-                        let is_dirty = {
+                        "exec" => {
+                            if !in_transaction {
+                                Value::Error("ERR EXEC without MULTI".to_string())
+                            } else {
+                                in_transaction = false;
+
+                                let is_dirty = {
+                                    let db_lock = db.lock().unwrap();
+
+                                    watched_versions.iter().any(|(key, watched_ver)| {
+                                        match db_lock.get(key) {
+                                            Some(entry) => entry.version != *watched_ver,
+                                            None => *watched_ver != 0,
+                                        }
+                                    })
+                                };
+
+                                watched_versions.clear();
+
+                                if is_dirty {
+                                    command_queue.clear();
+                                    Value::NullArray
+                                } else {
+                                    let mut results = Vec::new();
+                                    for queued_v in command_queue.drain(..) {
+                                        let (q_cmd, q_args) = extract_command(queued_v).unwrap();
+                                        let res = execute_command(
+                                            &q_cmd,
+                                            q_args,
+                                            &db,
+                                            is_replica,
+                                            &replicas,
+                                            Arc::clone(&write_half),
+                                            Arc::clone(&master_repl_offset),
+                                            Arc::clone(&config),
+                                            Arc::clone(&active_aof_path),
+                                            Arc::clone(&sub_registry),
+                                            &mut local_subscriptions,
+                                            &tx,
+                                        ).await;
+                                        results.push(res);
+                                    }
+                                    Value::Array(results)
+                                }
+                            }
+                        }
+
+                        "discard" => {
+                            if !in_transaction {
+                                Value::Error("ERR DISCARD without MULTI".to_string())
+                            } else {
+                                in_transaction = false;
+                                command_queue.clear();
+                                watched_versions.clear();
+                                Value::SimpleString("OK".to_string())
+                            }
+                        }
+
+                        "watch" => {
                             let db_lock = db.lock().unwrap();
 
-                            watched_versions.iter().any(|(key, watched_ver)| {
-                                // If key is deleted/missing, treat present state as distinct 
-                                // from a valid positive version number to prevent false matches.
-                                match db_lock.get(key) {
-                                    Some(entry) => entry.version != *watched_ver,
-                                    None => *watched_ver != 0,
+                            for arg in args {
+                                if let Ok(key_str) = unpack_bulk_str(arg) {
+                                    let version = db_lock
+                                        .get(&key_str)
+                                        .map(|entry| entry.version)
+                                        .unwrap_or(0);
+
+                                    watched_versions.insert(key_str, version);
                                 }
-                            })
-                        };
-
-                        // WATCH context is flushed upon EXEC regardless of outcome
-                        watched_versions.clear();
-
-                        if is_dirty {
-                            command_queue.clear();
-                            Value::NullArray
-                        } else {
-                            let mut results = Vec::new();
-                            for queued_v in command_queue.drain(..) {
-                                let (q_cmd, q_args) = extract_command(queued_v).unwrap();
-                                let res = execute_command(&q_cmd, q_args, &db, is_replica, &replicas, Arc::clone(&write_half), Arc::clone(&master_repl_offset), Arc::clone(&config),Arc::clone(&active_aof_path),Arc::clone(&sub_registry),  &mut local_subscriptions, &tx).await;
-                                results.push(res);
                             }
-                            Value::Array(results)
+                            Value::SimpleString("OK".to_string())
                         }
+
+                        "unwatch" => {
+                            watched_versions.clear();
+                            Value::SimpleString("OK".to_string())
+                        }
+
+                        c => execute_command(
+                            c,
+                            args.clone(),
+                            &db,
+                            is_replica,
+                            &replicas,
+                            Arc::clone(&write_half),
+                            Arc::clone(&master_repl_offset),
+                            Arc::clone(&config),
+                            Arc::clone(&active_aof_path),
+                            Arc::clone(&sub_registry),
+                            &mut local_subscriptions,
+                            &tx,
+                        ).await,
                     }
+                };
+
+                if matches!(response, Value::None) {
+                    if is_master_connection {
+                        *master_repl_offset.lock().unwrap() += bytes_read;
+                    }
+                    continue;
                 }
 
-                "discard" => {
-                    if !in_transaction {
-                        Value::Error("ERR DISCARD without MULTI".to_string())
+                if is_master_connection {
+                    if is_getack {
+                        println!("Sending GETACK response: {:?}", response);
+
+                        let write_result = handler.write_value(response).await;
+                        *master_repl_offset.lock().unwrap() += bytes_read;
+
+                        if write_result.is_err() {
+                            break;
+                        }
                     } else {
-                        in_transaction = false;
-                        command_queue.clear();
-                        watched_versions.clear(); // Reset watched keys on discard
-                        Value::SimpleString("OK".to_string())
+                        println!("replica executed command silently");
+                        let mut offset_guard = master_repl_offset.lock().unwrap();
+                        *offset_guard += bytes_read;
                     }
+                    continue;
                 }
 
-                "watch" => {
-                    let db_lock = db.lock().unwrap();
+                println!("Sending value {:?}", response);
 
-                    for arg in args {
-                        // Safely extract string values without assuming exact RESP variant
-                        if let Ok(key_str) = unpack_bulk_str(arg) {
-                            let version = db_lock
-                                .get(&key_str)
-                                .map(|entry| entry.version)
-                                .unwrap_or(0);
-
-                            watched_versions.insert(key_str, version);
-                        }
-                    }
-                    Value::SimpleString("OK".to_string())
-                }
-
-                "unwatch" => {
-                    watched_versions.clear();
-                    Value::SimpleString("OK".to_string())
-                }
-
-                c => execute_command(c, args.clone(), &db, is_replica, &replicas, Arc::clone(&write_half), Arc::clone(&master_repl_offset), Arc::clone(&config), Arc::clone(&active_aof_path), Arc::clone(&sub_registry), &mut local_subscriptions, &tx).await,
-            }
-        };
-
-        
-
-        
-
-        if matches!(response, Value::None) {
-            if is_master_connection {
-                *master_repl_offset.lock().unwrap() += bytes_read;
-            }
-            
-            continue;
-
-
-        }
-
-        if is_master_connection {
-            if is_getack {
-                println!("Sending GETACK response: {:?}", response);
-
-                let write_result = handler.write_value(response).await;
-
-                *master_repl_offset.lock().unwrap() += bytes_read;
-
-                if write_result.is_err() {
+                if handler.write_value(response).await.is_err() {
                     break;
                 }
-
-            } else {
-                println!("replica executed command silently");
-
-                let mut offset_guard = master_repl_offset.lock().unwrap();
-
-                *offset_guard += bytes_read;
             }
-
-            continue;
         }
-
-        println!("Sending value {:?}", response);
-
-        if handler.write_value(response).await.is_err() {
-            break;
-        }
-        
-    
-
-         
-        
-
-        
     }
 }
 fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
