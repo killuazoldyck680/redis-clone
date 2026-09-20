@@ -1833,6 +1833,10 @@ Value::SimpleString("OK".to_string())
 "publish" => {
     let channel_name = args.first().and_then(|arg| unpack_bulk_str(arg.clone())).ok().unwrap_or_default();
 
+    let sub_lock = sub_registry.lock().unwrap();
+
+
+
 }
 
 
