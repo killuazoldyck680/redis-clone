@@ -1903,22 +1903,31 @@ let write_half = Arc::new(Mutex::new(writer_stream));
 
 
     loop {
-        println!("1. Reading value from socket...");
-        let (value, bytes_read) = match handler.read_value().await {
-            Ok(Some((v, bytes))) => (v,bytes),
-            _ => break, // Connection closed or socket read error
-        };
-        println!("2. Value read successfully: {:?}", value);
+       tokio::select! {
+        Some(msg_val) = rx.recv() => {
+        if let Value::BulkString(payload) = msg_val {
+        let stream = write_half.lock().unwrap();
+        let _ = stream.try_write(payload.as_bytes());
+       
+       } else {
+            let _ = handler.write_value(msg_val).await;
 
-        println!("Got value {:?}", value);
+       }
 
-        let (command, args) = match extract_command(value.clone()) {
-            Ok(cmd_tuple) => cmd_tuple,
-            Err(_) => {
-                let _ = handler.write_value(Value::Error("ERR bad protocol".to_string())).await;
-                continue;
-            }
-        };
+       }
+
+       read_res = handler.read_value() => {
+        let (value, bytes_read) = match read_res {
+        Ok(Some((v, bytes))) => (v,bytes),
+        _ => break,
+        
+        }
+
+       }
+
+
+
+
 
         let cmd_name = command.trim().to_lowercase();
         let is_getack = cmd_name == "replconf" && args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()).map(|s| s.to_lowercase() == "getack").unwrap_or(false);
