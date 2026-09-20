@@ -1835,6 +1835,8 @@ Value::SimpleString("OK".to_string())
 
     let message_content = args.get(1).and_then(|arg| unpack_bulk_str(arg.clone()).ok()).unwrap_or_default();
 
+    let b_array = format!("*3\r\n$7\r\nmessage\r\n$9\r\nchannel_1\r\n$5\r\nhello\r\n");
+
     let sub_lock = sub_registry.lock().unwrap();
 
     let subscriber_count = sub_lock.get(&channel_name).map_or(0, |subscribers| subscribers.len());
