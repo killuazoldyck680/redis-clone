@@ -1831,7 +1831,7 @@ Value::SimpleString("OK".to_string())
 }
 
 "publish" => {
-    let channel_name = args.first().and_then(|arg| unpack_bulk_str(arg.clone())).ok().unwrap_or_default();
+    let channel_name = args.first().and_then(|arg| unpack_bulk_str(arg.clone()).ok()).unwrap_or_default();
 
     let sub_lock = sub_registry.lock().unwrap();
 
@@ -1839,7 +1839,11 @@ Value::SimpleString("OK".to_string())
 
     println!("Subscribers for {channel_name}: {subscriber_count}");
 
-    
+    let payload = format!(":{}\r\n", subscriber_count);
+let stream = write_half.lock().unwrap();
+let _ = stream.try_write(payload.as_bytes());
+Value::None
+
 
 
 
