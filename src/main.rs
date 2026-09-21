@@ -1943,8 +1943,20 @@ async fn execute_command(
         let last_response = responses.pop().unwrap();
 
         for resp in responses {
-            let payload = encode_resp(&resp);
-            let _ = write_half.lock().unwrap().try_write(payload.as_bytes())
+            if let Value::Array(ref items) = resp {
+                if items.len() == 3 {
+                    if let (Value::BulkString(cmd), Value::BulkString(ch), Value::Integer(count)) = (&items[0], &items[1], &items[2]) {
+                        let payload = format!(
+                    "*3\r\n${}\r\n{}\r\n${}\r\n{}\r\n:{}\r\n",
+                    cmd.len(), cmd,
+                    ch.len(), ch,
+                    count
+                );
+
+                let _ = write_half.lock().unwrap().try_write(payload.as_bytes());
+                    }
+                }
+            }
         }
 
         last_response
