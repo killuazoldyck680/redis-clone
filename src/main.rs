@@ -1899,7 +1899,7 @@ async fn execute_command(
         }
 
         "unsubscribe" => {
-           let channels_to_unsub = if !args.is_empty() {
+           let channels_to_unsub: Vec<String> = if !args.is_empty() {
             args.into_iter().filter_map(|arg| match arg {
                 Value::BulkString(s) | Value::SimpleString(s) => Some(s),
                 _ => None,
@@ -1910,7 +1910,7 @@ async fn execute_command(
            };
 
            if channels_to_unsub.is_empty() {
-            return Value::Array(vec![Value::BulkString("unsubscribe".into()), Value::Null, Value::Integer(0)]);
+            return Value::Array(vec![Value::BulkString("unsubscribe".into()), Value::NullArray, Value::Integer(0)]);
            }
 
            let mut sub_lock = sub_registry.lock().unwrap();
@@ -1940,10 +1940,18 @@ async fn execute_command(
            responses.push(resp_array);
         }
 
+        let last_response = responses.pop().unwrap();
+
+        for resp in responses {
+            let payload = encode_resp(&resp);
+            let _ = write_half.lock().unwrap().try_write(payload.as_bytes())
+        }
+
+        last_response
         
     
 
-    }
+    
 
         }
 
