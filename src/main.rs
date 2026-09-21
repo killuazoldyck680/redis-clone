@@ -1898,6 +1898,10 @@ async fn execute_command(
             Value::None
         }
 
+        "unsubscribe" => {
+            
+        }
+
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
