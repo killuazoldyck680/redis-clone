@@ -1917,6 +1917,21 @@ async fn execute_command(
 
            let mut responses = Vec::with_capacity(channels_to_unsub.len());
 
+           for channel_name in channels_to_unsub {
+            local_subscriptions.remove(&channel_name);
+           }
+
+           if let std::collections::hash_map::Entry::Occupied(mut entry) = sub_lock.entry(channel_name.clone()) {
+                let senders = entry.get_mut();
+
+                senders.retain(|subscriber_tx| !subscriber_tx.same_channel(&tx));
+
+                if senders.is_empty() {
+                    entry.remove();
+                }
+           }
+
+           
 
 
 
