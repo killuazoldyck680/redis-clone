@@ -1908,6 +1908,14 @@ async fn execute_command(
            } else {
             local_subscriptions.iter().cloned().collect()
            }
+
+           if channels_to_unsub.is_empty() {
+            Value::Array(vec![Value::BulkString("unsubscribe".into()), Value::Null, Value::Integer(0)])
+           }
+
+           let sub_lock = sub_registry.lock().unwrap();
+
+
         }
 
         _ => Value::Error("ERR unknown command".to_string()),
