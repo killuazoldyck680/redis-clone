@@ -1900,8 +1900,14 @@ async fn execute_command(
 
         "unsubscribe" => {
            let channels_to_unsub = if !args.is_empty() {
-            
-           } 
+            args.into_iter().filter_map(|arg| match arg {
+                Value::BulkString(s) | Value::SimpleString(s) => s,
+                _ => None,
+            })
+            .collect()
+           } else {
+            local_subscriptions.iter().cloned().collect()
+           }
         }
 
         _ => Value::Error("ERR unknown command".to_string()),
