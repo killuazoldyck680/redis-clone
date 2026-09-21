@@ -1907,19 +1907,19 @@ async fn execute_command(
             .collect()
            } else {
             local_subscriptions.iter().cloned().collect()
-           }
+           };
 
            if channels_to_unsub.is_empty() {
-            return Value::Array(vec![Value::BulkString("unsubscribe".into()), Value::Null, Value::Integer(0)])
+            return Value::Array(vec![Value::BulkString("unsubscribe".into()), Value::Null, Value::Integer(0)]);
            }
 
-           let sub_lock = sub_registry.lock().unwrap();
+           let mut sub_lock = sub_registry.lock().unwrap();
 
            let mut responses = Vec::with_capacity(channels_to_unsub.len());
 
            for channel_name in channels_to_unsub {
             local_subscriptions.remove(&channel_name);
-           }
+           
 
            if let std::collections::hash_map::Entry::Occupied(mut entry) = sub_lock.entry(channel_name.clone()) {
                 let senders = entry.get_mut();
@@ -1931,11 +1931,22 @@ async fn execute_command(
                 }
            }
 
-           
+           let resp_array = Value::Array(vec![
+            Value::BulkString("unsubscribe".into()),
+            Value::BulkString(channel_name),
+            Value::Integer(local_subscriptions.len() as i64),
+           ]);
 
+           responses.push(resp_array);
+        }
 
+        
+    
+
+    }
 
         }
+
 
         _ => Value::Error("ERR unknown command".to_string()),
     }
