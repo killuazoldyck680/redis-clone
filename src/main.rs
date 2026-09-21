@@ -1899,7 +1899,16 @@ async fn execute_command(
         }
 
         "unsubscribe" => {
-            
+            if args {
+                for arg in args {
+                    let channel_name = match arg {
+                        Value::BulkString(s) | Value::SimpleString(s) => s,
+                        _ => continue,
+                    }
+                }
+            } else {
+                
+            }
         }
 
         _ => Value::Error("ERR unknown command".to_string()),
