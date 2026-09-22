@@ -65,6 +65,9 @@ struct SortedSet {
     sorted_order: BTreeSet<SortedMember>,
 }
 
+impl SortedSet {
+    fn add()
+}
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
 type ReplicaList = Arc<std::sync::Mutex<Vec<Arc<std::sync::Mutex<TcpStream>>>>>;
