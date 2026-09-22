@@ -1,5 +1,6 @@
 use crate::resp::parse_message;
 use bytes::BytesMut;
+use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::env::args;
 use std::fmt::format;
@@ -50,6 +51,12 @@ impl Ord for SortedMember {
             .partial_cmp(&other.score)
             .unwrap_or(Ordering::Equal)
             .then_with(|| self.member.cmp(&other.member))
+    }
+}
+
+impl PartialOrd for SortedMember {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
