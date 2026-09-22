@@ -36,8 +36,10 @@ struct DbValue {
     version: usize,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 struct SortedMember {
-    
+    score: f64,
+    member: String,
 }
 
 struct SortedSet {
