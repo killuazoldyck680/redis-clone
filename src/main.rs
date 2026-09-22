@@ -37,7 +37,7 @@ struct DbValue {
     version: usize,
 }
 
-#[derive(Debug, PartialEq,)]
+#[derive(Debug, PartialEq,Clone)]
 struct SortedMember {
     score: f64,
     member: String,
@@ -60,6 +60,7 @@ impl PartialOrd for SortedMember {
     }
 }
 
+#[derive(Clone, Debug)]
 struct SortedSet {
     scores: HashMap<String, f64>,
     sorted_order: BTreeSet<SortedMember>,
@@ -73,7 +74,7 @@ impl SortedSet {
         }
 
         let old_item = SortedMember {
-            score: old_score.into(),
+            score: old_score,
             member: member.clone(),
         };
         self.sorted_order.remove(&old_item);
@@ -89,7 +90,7 @@ impl SortedSet {
         0
        } else {
            let new_item = SortedMember {
-            score: score.into(),
+            score: score,
             member: member.clone(),
            };
 

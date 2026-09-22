@@ -5,6 +5,8 @@ use tokio::{
     net::{TcpStream, tcp::OwnedReadHalf},
 };
 
+use crate::SortedSet;
+
 #[derive(Clone, Debug)]
 pub enum Value {
     SimpleString(String),
@@ -17,6 +19,7 @@ pub enum Value {
     RdbFile(Vec<u8>),
     Multiple(Vec<Value>),
     None,
+    SortedSet(SortedSet),
 }
 
 pub struct RespHandler {
@@ -89,6 +92,14 @@ impl Value {
             }
 
             Value::None => Vec::new(),
+
+            Value::SortedSet(set) => {
+                let items: Vec<Value> = set.sorted_order
+                .iter()
+                .map(|m| Value::BulkString(m.member.clone()))
+                .collect();
+            Value::Array(items).serialize()
+            }
         }
     }
 }
