@@ -38,7 +38,7 @@ struct DbValue {
 
 struct SortedSet {
     scores: HashMap<String, f64>,
-    sorted_order: BTreeSet<OrderedFloat, String>,
+    sorted_order: BTreeSet<SortedMember>,
 }
 
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
