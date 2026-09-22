@@ -2031,6 +2031,10 @@ async fn execute_command(
 
         }
 
+        "zadd" => {
+            
+        }
+
 
         _ => Value::Error("ERR unknown command".to_string()),
     }
