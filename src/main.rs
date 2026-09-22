@@ -36,6 +36,10 @@ struct DbValue {
     version: usize,
 }
 
+struct SortedMember {
+    
+}
+
 struct SortedSet {
     scores: HashMap<String, f64>,
     sorted_order: BTreeSet<SortedMember>,
