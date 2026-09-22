@@ -1,6 +1,6 @@
 use crate::resp::parse_message;
 use bytes::BytesMut;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::env::args;
 use std::fmt::format;
 use std::fs::{File, create_dir};
@@ -34,6 +34,11 @@ struct DbValue {
     value: DataType,
     expires_at: Option<Instant>,
     version: usize,
+}
+
+struct SortedSet {
+    scores: HashMap<String, f64>,
+    sorted_order: BTreeSet<OrderedFloat, String>,
 }
 
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
