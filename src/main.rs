@@ -44,6 +44,14 @@ struct SortedMember {
 
 impl Eq for SortedMember {}
 
+impl Ord for SortedMember {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.score
+            .partial_cmp(&other.score)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| self.member.cmp(&other.member))
+    }
+}
 
 struct SortedSet {
     scores: HashMap<String, f64>,
