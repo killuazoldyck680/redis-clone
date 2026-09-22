@@ -2035,6 +2035,11 @@ async fn execute_command(
             if args.len() < 3 {
                Value::Error("ERR wrong number of arguments for 'zadd' command".to_string()) 
             }
+
+            let score = match score_str.parse::<f64>() {
+                Ok(s) => s,
+                Err(_) => Value::Error("ERR value is not a valid float".to_string())
+            }
         }
 
 
