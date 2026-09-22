@@ -1191,6 +1191,7 @@ async fn execute_command(
                                 DataType::Str(_) => Value::SimpleString("string".to_string()),
                                 DataType::List(_) => Value::SimpleString("list".to_string()),
                                 DataType::Stream(_) => Value::SimpleString("stream".to_string()),
+                                DataType::SortedSet(_) => Value::SimpleString("zset".to_string()),
                             }
                         }
                     } else {
@@ -2047,31 +2048,38 @@ async fn execute_command(
             let score = match score_str.parse::<f64>() {
                 Ok(s) => s,
                 Err(_) => return Value::Error("ERR value is not a valid float".to_string()),
-            }
+            };
 
             let member = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
-            let db_lock = db.lock().unwrap();
+            let mut db_lock = db.lock().unwrap();
 
             
             match db_lock.get_mut(&key) {
-                Some(Value::SortedSet(ref mut zset)) => {
-                    let added = zset.add(member, score)
-                    Value::Integer(added as i64)
-                }
-                Some(_) => {
-                   Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()) 
-                }
-                None => {
-                    let mut zset = SortedSet {
-                        scores: HashMap::new(),
-                        sorted_order: BTreeSet::new(),
-                    };
-                    let added = zset.add(member, score);
-                    db_lock.insert(key, DbValue::SortedSet(zset));
-                    Value::Integer(added as i64
-                    )
-                }
+                Some(db_val) => match db_val.value {
+            DataType::SortedSet(ref mut zset) => {
+                let added = zset.add(member, score);
+                db_val.version += 1;
+                Value::Integer(added as i64)
+            }
+            _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+        },
+        None => {
+            let mut zset = SortedSet {
+                scores: HashMap::new(),
+                sorted_order: BTreeSet::new(),
+            };
+            let added = zset.add(member, score);
+            
+            let new_db_val = DbValue {
+                value: DataType::SortedSet(zset),
+                expires_at: None,
+                version: 1,
+            };
+            
+            db_lock.insert(key, new_db_val);
+            Value::Integer(added as i64)
+        }
             }
         
 
