@@ -2032,7 +2032,9 @@ async fn execute_command(
         }
 
         "zadd" => {
-            
+            if args.len() < 3 {
+               Value::Error("ERR wrong number of arguments for 'zadd' command".to_string()) 
+            }
         }
 
 
