@@ -66,7 +66,38 @@ struct SortedSet {
 }
 
 impl SortedSet {
-    fn add()
+    fn add(&mut self, member: String, score: f64) -> usize {
+       if let Some(&old_score) = self.scores.get(&member) {
+        if old_score == score {
+            return 0;
+        }
+
+        let old_item = SortedMember {
+            score: old_score.into(),
+            member: member.clone(),
+        };
+        self.sorted_order.remove(&old_item);
+
+        let new_item = SortedMember {
+            score: score,
+            member: member.clone(),
+        };
+
+        self.sorted_order.insert(new_item);
+        self.scores.insert(member, score);
+
+        0
+       } else {
+           let new_item = SortedMember {
+            score: score.into(),
+            member: member.clone(),
+           };
+
+           self.scores.insert(member, score);
+           self.sorted_order.insert(new_item);
+           1
+       }
+    }
 }
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
