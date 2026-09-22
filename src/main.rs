@@ -36,11 +36,14 @@ struct DbValue {
     version: usize,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq,)]
 struct SortedMember {
     score: f64,
     member: String,
 }
+
+impl Eq for SortedMember {}
+
 
 struct SortedSet {
     scores: HashMap<String, f64>,
