@@ -2106,6 +2106,21 @@ async fn execute_command(
            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
            let member = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+           let db_lock = db.lock().unwrap();
+
+           match db_lock.get(&key) {
+            Some(db_val) => match &db_val.value {
+                DataType::SortedSet(zset) => {
+                    match zset.rank(&member) {
+                        Some(rank) => Value::Integer(rank as i64),
+                        None => Value::NullBulkString,
+                    }
+                }
+                _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+            },
+            None => Value::NullBulkString,
+           }
         }
 
 
