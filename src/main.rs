@@ -2105,7 +2105,7 @@ async fn execute_command(
 
            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-           let member = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+           let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
            let db_lock = db.lock().unwrap();
 
