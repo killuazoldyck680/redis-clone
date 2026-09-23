@@ -2124,7 +2124,23 @@ async fn execute_command(
         }
 
         "zrange" => {
-            
+           if args.len() < 3 {
+            Value::Error("ERR wrong number of arguments for 'zrange' command")
+           } 
+
+           let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+           let start_index =  match unpack_bulk_str(args.get(1)).parse::<i64>() {
+            Ok(s) => s,
+            Err(_) => Value::Error("ERR value is not an integer or out of range")
+           }
+
+           let stop_index = match unpack_bulk_str(args.get(2)).parse::<i64>() {
+            Ok(s) => s,
+            Err(_) => Value::Error("ERR value is not an integer or out of range")
+           }
+
+
         }
 
 
