@@ -102,6 +102,12 @@ impl SortedSet {
            1
        }
     }
+
+   pub fn rank(&self, member: &str) -> Option<usize> {
+    let score = self.scores.get(member)?;
+
+    self.sorted_order.iter().position(|m| m.member == member && m.score == *score)
+   } 
 }
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
