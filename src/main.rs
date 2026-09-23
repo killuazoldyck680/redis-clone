@@ -2123,6 +2123,10 @@ async fn execute_command(
            }
         }
 
+        "zrange" => {
+            
+        }
+
 
         _ => Value::Error("ERR unknown command".to_string()),
     }
