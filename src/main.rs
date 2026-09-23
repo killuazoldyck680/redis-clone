@@ -2144,6 +2144,8 @@ async fn execute_command(
             Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
            };
 
+           let db_lock = db.lock().unwrap();
+
 
 
 
