@@ -2098,6 +2098,16 @@ async fn execute_command(
             
         }
 
+        "zrank" => {
+           if args.len() < 2 {
+            return Value::Error("ERR wrong number of arguments for 'zrank' command".to_string());
+           } 
+
+           let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+           let member = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+        }
+
 
         _ => Value::Error("ERR unknown command".to_string()),
     }
