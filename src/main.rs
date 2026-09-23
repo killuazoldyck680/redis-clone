@@ -2061,7 +2061,7 @@ async fn execute_command(
                 let added = zset.add(member, score);
                 db_val.version += 1;
                 Value::Integer(added as i64)
-            }
+            } 
             _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
         },
         None => {
