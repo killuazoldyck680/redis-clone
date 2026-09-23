@@ -2134,7 +2134,7 @@ async fn execute_command(
 
            let stop_str = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
-           let start_index: i64 = match start_index.parse() {
+           let start_index: i64 = match start_str.parse() {
             Ok(idx) => idx,
             Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
            };
@@ -2145,6 +2145,16 @@ async fn execute_command(
            };
 
            let db_lock = db.lock().unwrap();
+
+           match db_lock.get(&key) {
+            Some(db_val) => match &db_val.value {
+                DataType::SortedSet(zset) => {
+
+                }
+                _ => Value::Array(vec![])
+            }
+            None => Value::Array(vec![])
+           }
 
 
 
