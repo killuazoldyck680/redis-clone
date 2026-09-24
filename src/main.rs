@@ -2196,7 +2196,24 @@ Value::Array(result)
 
             let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-            
+            let db_lock = db.lock().unwrap();
+
+            match db_lock(&key) {
+                Some(db_val) => {
+                    match &db_val.value {
+                        DataType::SortedSet(zset) => {
+                            let len = zset.sorted_order.len() as i64;
+
+                            return Value::Integer(len as i64)
+                        }
+
+                        _ => {
+                           Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()) 
+                        }
+                    }
+                }
+                Value::Integer(0)
+            }
         }
 
 
