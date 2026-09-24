@@ -2125,7 +2125,7 @@ async fn execute_command(
 
         "zrange" => {
            if args.len() < 3 {
-            return Value::Error("ERR wrong number of arguments for 'zrange' command")
+            return Value::Error("ERR wrong number of arguments for 'zrange' command".to_string())
            } 
 
            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
@@ -2150,7 +2150,7 @@ async fn execute_command(
             Some(db_val) => match &db_val.value {
                 DataType::SortedSet(zset) => {
 
-                    let n:   = zset.len() as i64;
+                    let n: i64 = zset.len() as i64;
                     
                     if start_index < 0 { start_index += n; }
 
@@ -2165,10 +2165,9 @@ async fn execute_command(
 
                     let stop = stop_index as usize;
 
-                    for z in zset.range(start, stop) {
-                        
-                    }
+                    let mut result = Vec::new();
 
+                    
                     
                 }
                 _ => Value::Array(vec![])
