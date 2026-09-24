@@ -2190,6 +2190,12 @@ Value::Array(result)
         }
 
         "zcard" => {
+            if args.len() < 1 {
+                return Value::Error("ERR wrong number of arguments for 'zcard' command".to_string())
+            }
+
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
             
         }
 
