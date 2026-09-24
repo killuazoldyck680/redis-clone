@@ -2150,7 +2150,7 @@ async fn execute_command(
             Some(db_val) => match &db_val.value {
                 DataType::SortedSet(zset) => {
 
-                    let N:   = zset.len() as i64;
+                    let n:   = zset.len() as i64;
                     
                     if start_index < 0 { start_index += n; }
 
@@ -2160,6 +2160,14 @@ async fn execute_command(
                     if stop_index >= n { stop_index = n - 1; }
 
                     if start_index >= n || start_index > stop_index { return Value::Array(vec![]); }
+
+                    let start = start_index as usize;
+
+                    let stop = stop_index as usize;
+
+                    for z in zset.range(start, stop) {
+                        
+                    }
 
                     
                 }
