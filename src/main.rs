@@ -2134,12 +2134,12 @@ async fn execute_command(
 
            let stop_str = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
-           let start_index: i64 = match start_str.parse() {
+           let mut start_index: i64 = match start_str.parse() {
             Ok(idx) => idx,
             Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
            };
 
-           let stop_index: i64 = match stop_str.parse() {
+           let mut stop_index: i64 = match stop_str.parse() {
             Ok(idx) => idx,
             Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
            };
@@ -2151,16 +2151,17 @@ async fn execute_command(
                 DataType::SortedSet(zset) => {
 
                     let N:   = zset.len() as i64;
-                    if start_index < 0 {
-                        start_index += N
-                        start_index = 0
-                    } else if stop_index < 0 {
-                        stop_index += N
-                    } else if stop_index >= N {
-                        stop_index = N - 1
-                    } else if start_index >= N | start_index > stop_index {
-                        return Value::Array(vec![])
-                    }
+                    
+                    if start_index < 0 { start_index += n; }
+
+                    if stop_index < 0 { stop_index += n; }
+
+                    if start_index < 0 { start_index = 0; }
+                    if stop_index >= n { stop_index = n - 1; }
+
+                    if start_index >= n || start_index > stop_index { return Value::Array(vec![]); }
+
+                    
                 }
                 _ => Value::Array(vec![])
             }
