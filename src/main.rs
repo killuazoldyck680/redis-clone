@@ -2198,13 +2198,13 @@ Value::Array(result)
 
             let db_lock = db.lock().unwrap();
 
-            match db_lock(&key) {
+            match db_lock.get(&key) {
                 Some(db_val) => {
                     match &db_val.value {
                         DataType::SortedSet(zset) => {
                             let len = zset.sorted_order.len() as i64;
 
-                            return Value::Integer(len as i64)
+                            return Value::Integer(len)
                         }
 
                         _ => {
@@ -2212,7 +2212,7 @@ Value::Array(result)
                         }
                     }
                 }
-                Value::Integer(0)
+                None => Value::Integer(0)
             }
         }
 
