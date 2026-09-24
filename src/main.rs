@@ -2189,6 +2189,10 @@ Value::Array(result)
 
         }
 
+        "zcard" => {
+            
+        }
+
 
         _ => Value::Error("ERR unknown command".to_string()),
     }
