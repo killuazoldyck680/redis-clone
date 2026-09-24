@@ -2150,7 +2150,7 @@ async fn execute_command(
             Some(db_val) => match &db_val.value {
                 DataType::SortedSet(zset) => {
 
-                    let n: i64 = zset.len() as i64;
+                    let n = zset.sorted_order.len() as i64;
                     
                     if start_index < 0 { start_index += n; }
 
@@ -2167,10 +2167,14 @@ async fn execute_command(
 
                     let mut result = Vec::new();
 
-                    
+                    for item in zset.sorted_order[start..=stop] {
+                       result.push(Value::BulkString(item.member.clone())); 
+                    }
+                    Value::Array(result)
+
                     
                 }
-                _ => Value::Array(vec![])
+                _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string())
             }
             None => Value::Array(vec![])
            }
