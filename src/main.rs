@@ -2167,11 +2167,12 @@ async fn execute_command(
 
                     let mut result = Vec::new();
 
-                    for item in zset.sorted_order[start..=stop] {
-                       result.push(Value::BulkString(item.member.clone())); 
-                    }
-                    Value::Array(result)
+                    let count = stop - start + 1;
 
+                    for item in zset.sorted_order.iter().skip(start).take(count) {
+    result.push(Value::BulkString(item.member.clone()));
+}
+Value::Array(result)
                     
                 }
                 _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string())
