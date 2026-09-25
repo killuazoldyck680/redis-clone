@@ -108,6 +108,19 @@ impl SortedSet {
 
     self.sorted_order.iter().position(|m| m.member == member && m.score == *score)
    } 
+
+   pub fn remove(&mut self, member: &str) -> bool {
+    if let Some(score) = self.scores.remove(member) {
+        let item = SortedMember {
+            score,
+            member: member.to_string()
+        };
+        self.sorted_order.remove(&item);
+        true
+    } else {
+        false
+    }
+   }
 }
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
@@ -2247,22 +2260,28 @@ Value::Array(result)
 
     let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-    let db_lock = db.lock().unwrap();
+    let mut db_lock = db.lock().unwrap();
 
     match db_lock.get_mut(&key) {
         Some(db_val) => {
             match &mut db_val.value {
                 DataType::SortedSet(zset) => {
                     match zset.scores.remove(&member) {
-                        Some(score) => SoretedSet.skip(score,member)
+                        Some(score) => {SoretedSet.skip(score,member)
 
                         Value::Integer(1)
+                        }
 
                         None => Value::Integer(0)
                     }
+
+                    _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string())
                 }
             }
+     
         }
+
+        None => Value::Integer(0)
     }
 }
 
