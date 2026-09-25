@@ -2253,7 +2253,13 @@ Value::Array(result)
         Some(db_val) => {
             match &mut db_val.value {
                 DataType::SortedSet(zset) => {
-                    match
+                    match zset.scores.remove(&member) {
+                        Some(score) => SoretedSet.skip(score,member)
+
+                        Value::Integer(1)
+
+                        None => Value::Integer(0)
+                    }
                 }
             }
         }
