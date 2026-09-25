@@ -2239,7 +2239,11 @@ Value::Array(result)
 }
 
 "zrem" => {
-    
+    if args.len() < 2 {
+        return Value::Error("ERR wrong number of arguments for 'zrem' command".to_string())
+    }
+
+    let db_lock = db.lock().unwrap();
 }
 
 
