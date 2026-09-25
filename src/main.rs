@@ -2253,35 +2253,28 @@ Value::Array(result)
 
 "zrem" => {
     if args.len() < 2 {
-        return Value::Error("ERR wrong number of arguments for 'zrem' command".to_string())
+        return Value::Error("ERR wrong number of arguments for 'zrem' command".to_string());
     }
 
     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
     let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
     let mut db_lock = db.lock().unwrap();
 
     match db_lock.get_mut(&key) {
-        Some(db_val) => {
-            match &mut db_val.value {
-                DataType::SortedSet(zset) => {
-                    match zset.scores.remove(&member) {
-                        Some(score) => {SoretedSet.skip(score,member)
-
-                        Value::Integer(1)
-                        }
-
-                        None => Value::Integer(0)
-                    }
-
-                    _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string())
-                }
+        Some(db_val) => match &mut db_val.value {
+            DataType::SortedSet(ref mut zset) => {
+                let count = if zset.remove(&member) {
+                    db_val.version += 1;
+                    1
+                } else {
+                    0
+                };
+                Value::Integer(count)
             }
-     
-        }
-
-        None => Value::Integer(0)
+            _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+        },
+        None => Value::Integer(0),
     }
 }
 
