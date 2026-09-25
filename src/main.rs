@@ -2217,14 +2217,26 @@ Value::Array(result)
         }
 
         "zscore" => {
-            if args.len() < 2 {
-               return Value::Error("ERR wrong number of arguments for 'zscore' command".to_string()) 
-            }
+    if args.len() < 2 {
+        return Value::Error("ERR wrong number of arguments for 'zscore' command".to_string());
+    }
 
-            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+    let target_member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-            let target_member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-        }
+    let db_lock = db.lock().unwrap();
+
+    match db_lock.get(&key) {
+        Some(db_val) => match &db_val.value {
+            DataType::SortedSet(zset) => match zset.scores.get(&target_member) {
+                Some(score) => Value::BulkString(score.to_string()),
+                None => Value::NullBulkString,
+            },
+            _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+        },
+        None => Value::NullBulkString,
+    }
+}
 
 
         _ => Value::Error("ERR unknown command".to_string()),
