@@ -2243,7 +2243,21 @@ Value::Array(result)
         return Value::Error("ERR wrong number of arguments for 'zrem' command".to_string())
     }
 
+    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+    let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
     let db_lock = db.lock().unwrap();
+
+    match db_lock.get_mut(&key) {
+        Some(db_val) => {
+            match &mut db_val.value {
+                DataType::SortedSet(zset) => {
+                    match
+                }
+            }
+        }
+    }
 }
 
 
