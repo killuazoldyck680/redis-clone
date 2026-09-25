@@ -2238,6 +2238,10 @@ Value::Array(result)
     }
 }
 
+"zrem" => {
+    
+}
+
 
         _ => Value::Error("ERR unknown command".to_string()),
     }
