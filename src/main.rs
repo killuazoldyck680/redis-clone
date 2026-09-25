@@ -2263,7 +2263,7 @@ Value::Array(result)
 
     match db_lock.get_mut(&key) {
         Some(db_val) => match &mut db_val.value {
-            DataType::SortedSet(ref mut zset) => {
+            DataType::SortedSet( zset) => {
                 let count = if zset.remove(&member) {
                     db_val.version += 1;
                     1
