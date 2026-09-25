@@ -2217,7 +2217,9 @@ Value::Array(result)
         }
 
         "zscore" => {
-            
+            if args.len() < 2 {
+               return Value::Error("ERR wrong number of arguments for 'zscore' command".to_string()) 
+            }
         }
 
 
