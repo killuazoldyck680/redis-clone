@@ -2216,6 +2216,10 @@ Value::Array(result)
             }
         }
 
+        "zscore" => {
+            
+        }
+
 
         _ => Value::Error("ERR unknown command".to_string()),
     }
