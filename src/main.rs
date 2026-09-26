@@ -2312,6 +2312,19 @@ Value::Array(result)
     ));
             }
 
+            let db_lock = db.lock().unwrap();
+
+            match db_lock.get_mut(&key) {
+                Some(db_val) => {
+                   match db_val.value {
+                    DataType::SortedSet(zset) => {
+                        
+                    }
+                   }
+                }
+
+            }
+
             
             Value::Integer(1)
         }
