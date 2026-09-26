@@ -2290,6 +2290,18 @@ Value::Array(result)
             let latitude_str = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
             let member = unpack_bulk_str(args.get(3).cloned().unwrap()).unwrap();
+
+            let longitude = match longitude_str.parse::<f64>() {
+                Ok(s) => s,
+                Err(_) => return Value::Error("ERR value is not a valid float".to_string())
+            };
+
+            let latitude = match latitude_str.parse::<f64>() {
+                Ok(s) => s,
+                Err(_) => return Value::Error("ERR value is not a valid float".to_string())
+            };
+
+            Value::Integer(1)
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
