@@ -2278,7 +2278,9 @@ Value::Array(result)
     }
 }
 
-
+        "geoadd" => {
+            
+        }
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
