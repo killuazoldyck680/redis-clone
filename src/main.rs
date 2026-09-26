@@ -2301,6 +2301,10 @@ Value::Array(result)
                 Err(_) => return Value::Error("ERR value is not a valid float".to_string())
             };
 
+            let longitude_range = [-180.0, 180.0];
+
+            let latitude_range = [-85.05112878, 85.05112878];
+
             Value::Integer(1)
         }
         _ => Value::Error("ERR unknown command".to_string()),
