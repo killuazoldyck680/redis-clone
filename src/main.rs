@@ -2279,76 +2279,63 @@ Value::Array(result)
 }
 
         "geoadd" => {
-            if args.len() < 4 {
-               return Value::Error("ERR wrong number of arguments for 'geoadd' command".to_string())
+    if args.len() < 4 {
+        return Value::Error("ERR wrong number of arguments for 'geoadd' command".to_string());
+    }
+
+    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+    let longitude_str = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+    let latitude_str = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
+    let member = unpack_bulk_str(args.get(3).cloned().unwrap()).unwrap();
+
+    let longitude = match longitude_str.parse::<f64>() {
+        Ok(s) => s,
+        Err(_) => return Value::Error("ERR value is not a valid float".to_string()),
+    };
+
+    let latitude = match latitude_str.parse::<f64>() {
+        Ok(s) => s,
+        Err(_) => return Value::Error("ERR value is not a valid float".to_string()),
+    };
+
+    if longitude < -180.0 || longitude > 180.0 || latitude < -85.05112878 || latitude > 85.05112878 {
+        return Value::Error(format!(
+            "ERR invalid longitude,latitude pair {},{}",
+            longitude_str, latitude_str
+        ));
+    }
+
+    let mut db_lock = db.lock().unwrap();
+
+    match db_lock.get_mut(&key) {
+        Some(db_val) => match &mut db_val.value {
+            DataType::SortedSet(zset) => {
+                let added = zset.add(member, 0.0);
+                if added > 0 {
+                    db_val.version += 1;
+                }
+                Value::Integer(added as i64)
             }
-
-            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
-            let longitude_str = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-            let latitude_str = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
-
-            let member = unpack_bulk_str(args.get(3).cloned().unwrap()).unwrap();
-
-            let longitude = match longitude_str.parse::<f64>() {
-                Ok(s) => s,
-                Err(_) => return Value::Error("ERR value is not a valid float".to_string())
-            };
-
-            let latitude = match latitude_str.parse::<f64>() {
-                Ok(s) => s,
-                Err(_) => return Value::Error("ERR value is not a valid float".to_string())
-            };
-
-            let longitude_range = [-180.0, 180.0];
-
-            let latitude_range = [-85.05112878, 85.05112878];
-
-            if longitude < -180.0 || longitude > 180.0 || latitude < -85.05112878 || latitude > 85.05112878 {
-                return Value::Error(format!(
-        "ERR invalid longitude,latitude pair {},{}",
-        longitude_str, latitude_str
-    ));
-            }
-
-            let mut db_lock = db.lock().unwrap();
-
-            match db_lock.get_mut(&key) {
-                Some(db_val) => {
-                   match &mut db_val.value {
-                    DataType::SortedSet(zset) => {
-                        let added = if zset.add(member, 0.0) {
-                            db_val.version += 1;
-                            1
-                        } else {
-                            0
-                        };
-                        Value::Integer(added)
-                    }
-                    _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
-                   },
-                   
-        }
+            _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+        },
         None => {
             let mut new_zset = SortedSet {
                 scores: HashMap::new(),
                 sorted_order: BTreeSet::new(),
             };
             new_zset.add(member, 0.0);
-            db_lock.insert(key, DbValue {
-            value: DataType::SortedSet(new_zset),
-            expires_at: None,
-            version: 0,
-        },);
+            db_lock.insert(
+                key,
+                DbValue {
+                    value: DataType::SortedSet(new_zset),
+                    expires_at: None,
+                    version: 0,
+                },
+            );
             Value::Integer(1)
-                }
-
-            }
-
-            
-            
         }
+    }
+}
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
