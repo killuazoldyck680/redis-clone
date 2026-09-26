@@ -2279,7 +2279,9 @@ Value::Array(result)
 }
 
         "geoadd" => {
-            
+            if args.len() < 4 {
+               return Value::Error("ERR wrong number of arguments for 'geoadd' command".to_string())
+            }
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
