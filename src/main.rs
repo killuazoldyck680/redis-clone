@@ -2312,15 +2312,28 @@ Value::Array(result)
     ));
             }
 
-            let db_lock = db.lock().unwrap();
+            let mut db_lock = db.lock().unwrap();
 
             match db_lock.get_mut(&key) {
                 Some(db_val) => {
-                   match db_val.value {
+                   match &mut db_val.value {
                     DataType::SortedSet(zset) => {
-                        
+                        let added = if zset.add(0.0, member) {
+                            db_val.version += 1;
+                            1
+                        } else {
+                            0
+                        };
+                        Value::Integer(added)
                     }
-                   }
+                    _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+                   },
+                   None => {
+            let mut new_zset = SortedSet::new();
+            new_zset.add(0.0, member);
+            db_lock.insert(key, DbValue::new(DataType::SortedSet(new_zset)));
+            Value::Integer(1)
+        }
                 }
 
             }
