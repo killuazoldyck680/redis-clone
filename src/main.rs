@@ -2305,6 +2305,14 @@ Value::Array(result)
 
             let latitude_range = [-85.05112878, 85.05112878];
 
+            if longitude < -180.0 || longitude > 180.0 || latitude < -85.05112878 || latitude > 85.05112878 {
+                return Value::Error(format!(
+        "ERR invalid longitude,latitude pair {},{}",
+        longitude_str, latitude_str
+    ));
+            }
+
+            
             Value::Integer(1)
         }
         _ => Value::Error("ERR unknown command".to_string()),
