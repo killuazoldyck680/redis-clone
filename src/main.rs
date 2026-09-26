@@ -2318,7 +2318,7 @@ Value::Array(result)
                 Some(db_val) => {
                    match &mut db_val.value {
                     DataType::SortedSet(zset) => {
-                        let added = if zset.add(0.0, member) {
+                        let added = if zset.add(member, 0.0) {
                             db_val.version += 1;
                             1
                         } else {
@@ -2328,18 +2328,26 @@ Value::Array(result)
                     }
                     _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
                    },
-                   None => {
-            let mut new_zset = SortedSet::new();
-            new_zset.add(0.0, member);
-            db_lock.insert(key, DbValue::new(DataType::SortedSet(new_zset)));
-            Value::Integer(1)
+                   
         }
+        None => {
+            let mut new_zset = SortedSet {
+                scores: HashMap::new(),
+                sorted_order: BTreeSet::new(),
+            };
+            new_zset.add(member, 0.0);
+            db_lock.insert(key, DbValue {
+            value: DataType::SortedSet(new_zset),
+            expires_at: None,
+            version: 0,
+        },);
+            Value::Integer(1)
                 }
 
             }
 
             
-            Value::Integer(1)
+            
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
