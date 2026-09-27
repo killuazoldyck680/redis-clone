@@ -2374,7 +2374,7 @@ Value::Array(result)
 
 "geopos" => {
     if args.len() < 2 {
-        return Value::Error("ERR wrong number of arguments for 'geoadd' command".to_string());
+        return Value::Error("ERR wrong number of arguments for 'geopos' command".to_string());
     }
 
     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
