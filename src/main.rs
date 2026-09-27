@@ -324,6 +324,10 @@ fn append_to_aof(config: &Config, active_aof_path: &Arc<Option<PathBuf>>, comman
     }
 }
 
+fn encode_geohash(longitude: f64, latitude: f64) -> f64 {
+    
+}
+
 // --- Main Application Loop ---
 
 #[tokio::main]
