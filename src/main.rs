@@ -337,7 +337,7 @@ fn encode_geohash(longitude: f64, latitude: f64) -> f64 {
         let long_mid = (long_min + long_max) / 2.0;
 
         if longitude >= long_mid {
-            hash_bits |= 1u64 << (2 * i);
+            hash_bits |= 1u64 << (50 - 2 * i);
             long_min = long_mid
         } else {
             long_max = long_mid
@@ -348,7 +348,7 @@ fn encode_geohash(longitude: f64, latitude: f64) -> f64 {
         let lat_mid = (lat_min + lat_max) / 2.0;
 
         if latitude >= lat_mid {
-            hash_bits |= 1u64 << (2 * i + 1);
+            hash_bits |= 1u64 << (51 - 2 * i);
             lat_min = lat_mid
         } else {
             lat_max = lat_mid
@@ -2342,12 +2342,13 @@ Value::Array(result)
         ));
     }
 
+    let score = encode_geohash(longitude, latitude);
     let mut db_lock = db.lock().unwrap();
 
     match db_lock.get_mut(&key) {
         Some(db_val) => match &mut db_val.value {
             DataType::SortedSet(zset) => {
-                let added = zset.add(member, 0.0);
+                let added = zset.add(member, score);
                 if added > 0 {
                     db_val.version += 1;
                 }
@@ -2360,7 +2361,7 @@ Value::Array(result)
                 scores: HashMap::new(),
                 sorted_order: BTreeSet::new(),
             };
-            new_zset.add(member, 0.0);
+            new_zset.add(member, score);
             db_lock.insert(
                 key,
                 DbValue {
