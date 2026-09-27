@@ -346,27 +346,12 @@ fn encode_geohash(longitude: f64, latitude: f64) -> f64 {
     let mut hash_bits: u64 = 0;
 
     for i in 0..26 {
-        let long_mid = (long_min + long_max) / 2.0;
+    let lat_bit = ((norm_lat_int >> i) & 1) as u64;
+    let long_bit = ((norm_long_int >> i) & 1) as u64;
 
-        if longitude >= long_mid {
-            hash_bits |= 1u64 << (50 - 2 * i);
-            long_min = long_mid
-        } else {
-            long_max = long_mid
-        }
-    
-
-    
-        let lat_mid = (lat_min + lat_max) / 2.0;
-
-        if latitude >= lat_mid {
-            hash_bits |= 1u64 << (51 - 2 * i);
-            lat_min = lat_mid
-        } else {
-            lat_max = lat_mid
-        }
-    }
-
+    hash_bits |= lat_bit << (2 * i);
+    hash_bits |= long_bit << (2 * i + 1);
+}
         hash_bits as f64
     
     }
