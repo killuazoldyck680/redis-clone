@@ -2380,6 +2380,22 @@ Value::Array(result)
     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
     let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+    let db_lock = db.lock().unwrap();
+
+    match db_lock.get_mut(&key) {
+        Some(db_val) => {
+            match db_val.value {
+                Value::SortedSet(zset) => {
+
+                }
+
+                _ => {}
+            }
+        }
+
+        None => {}
+    }
 }
         _ => Value::Error("ERR unknown command".to_string()),
     }
