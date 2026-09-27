@@ -331,6 +331,18 @@ fn encode_geohash(longitude: f64, latitude: f64) -> f64 {
     let mut lat_min = -85.05112878;
     let mut lat_max = 85.05112878;
 
+    let lat_range = lat_max - lat_min;
+    let long_range = long_max - long_min;
+
+    let scale = (1u64 << 26) as f64;
+    let norm_lat = scale * (latitude - lat_min) / lat_range;
+
+    let norm_long = scale * (longitude - long_min) / long_range;
+
+    let norm_lat_int = norm_lat as u32;
+    let norm_long_int = norm_long as u32;
+
+
     let mut hash_bits: u64 = 0;
 
     for i in 0..26 {
