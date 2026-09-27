@@ -2371,6 +2371,10 @@ Value::Array(result)
         }
     }
 }
+
+"geopos" => {
+    
+}
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
