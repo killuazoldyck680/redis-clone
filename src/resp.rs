@@ -94,11 +94,12 @@ impl Value {
             Value::None => Vec::new(),
 
             Value::SortedSet(set) => {
-                let items: Vec<Value> = set.sorted_order
-                .iter()
-                .map(|m| Value::BulkString(m.member.clone()))
-                .collect();
-            Value::Array(items).serialize()
+                let items: Vec<Value> = set
+                    .sorted_order
+                    .iter()
+                    .map(|m| Value::BulkString(m.member.clone()))
+                    .collect();
+                Value::Array(items).serialize()
             }
         }
     }

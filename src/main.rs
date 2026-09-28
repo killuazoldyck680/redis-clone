@@ -36,11 +36,9 @@ struct DbValue {
     value: DataType,
     expires_at: Option<Instant>,
     version: usize,
-    
-
 }
 
-#[derive(Debug, PartialEq,Clone)]
+#[derive(Debug, PartialEq, Clone)]
 struct SortedMember {
     score: f64,
     member: String,
@@ -71,56 +69,58 @@ struct SortedSet {
 
 impl SortedSet {
     fn add(&mut self, member: String, score: f64) -> usize {
-       if let Some(&old_score) = self.scores.get(&member) {
-        if old_score == score {
-            return 0;
+        if let Some(&old_score) = self.scores.get(&member) {
+            if old_score == score {
+                return 0;
+            }
+
+            let old_item = SortedMember {
+                score: old_score,
+                member: member.clone(),
+            };
+            self.sorted_order.remove(&old_item);
+
+            let new_item = SortedMember {
+                score: score,
+                member: member.clone(),
+            };
+
+            self.sorted_order.insert(new_item);
+            self.scores.insert(member, score);
+
+            0
+        } else {
+            let new_item = SortedMember {
+                score: score,
+                member: member.clone(),
+            };
+
+            self.scores.insert(member, score);
+            self.sorted_order.insert(new_item);
+            1
         }
-
-        let old_item = SortedMember {
-            score: old_score,
-            member: member.clone(),
-        };
-        self.sorted_order.remove(&old_item);
-
-        let new_item = SortedMember {
-            score: score,
-            member: member.clone(),
-        };
-
-        self.sorted_order.insert(new_item);
-        self.scores.insert(member, score);
-
-        0
-       } else {
-           let new_item = SortedMember {
-            score: score,
-            member: member.clone(),
-           };
-
-           self.scores.insert(member, score);
-           self.sorted_order.insert(new_item);
-           1
-       }
     }
 
-   pub fn rank(&self, member: &str) -> Option<usize> {
-    let score = self.scores.get(member)?;
+    pub fn rank(&self, member: &str) -> Option<usize> {
+        let score = self.scores.get(member)?;
 
-    self.sorted_order.iter().position(|m| m.member == member && m.score == *score)
-   } 
-
-   pub fn remove(&mut self, member: &str) -> bool {
-    if let Some(score) = self.scores.remove(member) {
-        let item = SortedMember {
-            score,
-            member: member.to_string()
-        };
-        self.sorted_order.remove(&item);
-        true
-    } else {
-        false
+        self.sorted_order
+            .iter()
+            .position(|m| m.member == member && m.score == *score)
     }
-   }
+
+    pub fn remove(&mut self, member: &str) -> bool {
+        if let Some(score) = self.scores.remove(member) {
+            let item = SortedMember {
+                score,
+                member: member.to_string(),
+            };
+            self.sorted_order.remove(&item);
+            true
+        } else {
+            false
+        }
+    }
 }
 type Db = Arc<Mutex<HashMap<String, DbValue>>>;
 
@@ -342,21 +342,17 @@ fn encode_geohash(longitude: f64, latitude: f64) -> f64 {
     let norm_lat_int = norm_lat as u32;
     let norm_long_int = norm_long as u32;
 
-
     let mut hash_bits: u64 = 0;
 
     for i in 0..26 {
-    let lat_bit = ((norm_lat_int >> i) & 1) as u64;
-    let long_bit = ((norm_long_int >> i) & 1) as u64;
+        let lat_bit = ((norm_lat_int >> i) & 1) as u64;
+        let long_bit = ((norm_long_int >> i) & 1) as u64;
 
-    hash_bits |= lat_bit << (2 * i);
-    hash_bits |= long_bit << (2 * i + 1);
-}
-        hash_bits as f64
-    
+        hash_bits |= lat_bit << (2 * i);
+        hash_bits |= long_bit << (2 * i + 1);
     }
-    
-
+    hash_bits as f64
+}
 
 // --- Main Application Loop ---
 
@@ -2021,77 +2017,85 @@ async fn execute_command(
         }
 
         "unsubscribe" => {
-           let channels_to_unsub: Vec<String> = if !args.is_empty() {
-            args.into_iter().filter_map(|arg| match arg {
-                Value::BulkString(s) | Value::SimpleString(s) => Some(s),
-                _ => None,
-            })
-            .collect()
-           } else {
-            local_subscriptions.iter().cloned().collect()
-           };
+            let channels_to_unsub: Vec<String> = if !args.is_empty() {
+                args.into_iter()
+                    .filter_map(|arg| match arg {
+                        Value::BulkString(s) | Value::SimpleString(s) => Some(s),
+                        _ => None,
+                    })
+                    .collect()
+            } else {
+                local_subscriptions.iter().cloned().collect()
+            };
 
-           if channels_to_unsub.is_empty() {
-            return Value::Array(vec![Value::BulkString("unsubscribe".into()), Value::NullArray, Value::Integer(0)]);
-           }
+            if channels_to_unsub.is_empty() {
+                return Value::Array(vec![
+                    Value::BulkString("unsubscribe".into()),
+                    Value::NullArray,
+                    Value::Integer(0),
+                ]);
+            }
 
-           let mut sub_lock = sub_registry.lock().unwrap();
+            let mut sub_lock = sub_registry.lock().unwrap();
 
-           let mut responses = Vec::with_capacity(channels_to_unsub.len());
+            let mut responses = Vec::with_capacity(channels_to_unsub.len());
 
-           for channel_name in channels_to_unsub {
-            local_subscriptions.remove(&channel_name);
-           
+            for channel_name in channels_to_unsub {
+                local_subscriptions.remove(&channel_name);
 
-           if let std::collections::hash_map::Entry::Occupied(mut entry) = sub_lock.entry(channel_name.clone()) {
-                let senders = entry.get_mut();
+                if let std::collections::hash_map::Entry::Occupied(mut entry) =
+                    sub_lock.entry(channel_name.clone())
+                {
+                    let senders = entry.get_mut();
 
-                senders.retain(|subscriber_tx| !subscriber_tx.same_channel(&tx));
+                    senders.retain(|subscriber_tx| !subscriber_tx.same_channel(&tx));
 
-                if senders.is_empty() {
-                    entry.remove();
+                    if senders.is_empty() {
+                        entry.remove();
+                    }
                 }
-           }
 
-           let resp_array = Value::Array(vec![
-            Value::BulkString("unsubscribe".into()),
-            Value::BulkString(channel_name),
-            Value::Integer(local_subscriptions.len() as i64),
-           ]);
+                let resp_array = Value::Array(vec![
+                    Value::BulkString("unsubscribe".into()),
+                    Value::BulkString(channel_name),
+                    Value::Integer(local_subscriptions.len() as i64),
+                ]);
 
-           responses.push(resp_array);
-        }
+                responses.push(resp_array);
+            }
 
-        let last_response = responses.pop().unwrap();
+            let last_response = responses.pop().unwrap();
 
-        for resp in responses {
-            if let Value::Array(ref items) = resp {
-                if items.len() == 3 {
-                    if let (Value::BulkString(cmd), Value::BulkString(ch), Value::Integer(count)) = (&items[0], &items[1], &items[2]) {
-                        let payload = format!(
-                    "*3\r\n${}\r\n{}\r\n${}\r\n{}\r\n:{}\r\n",
-                    cmd.len(), cmd,
-                    ch.len(), ch,
-                    count
-                );
+            for resp in responses {
+                if let Value::Array(ref items) = resp {
+                    if items.len() == 3 {
+                        if let (
+                            Value::BulkString(cmd),
+                            Value::BulkString(ch),
+                            Value::Integer(count),
+                        ) = (&items[0], &items[1], &items[2])
+                        {
+                            let payload = format!(
+                                "*3\r\n${}\r\n{}\r\n${}\r\n{}\r\n:{}\r\n",
+                                cmd.len(),
+                                cmd,
+                                ch.len(),
+                                ch,
+                                count
+                            );
 
-                let _ = write_half.lock().unwrap().try_write(payload.as_bytes());
+                            let _ = write_half.lock().unwrap().try_write(payload.as_bytes());
+                        }
                     }
                 }
             }
-        }
 
-        last_response
-        
-    
-
-    
-
+            last_response
         }
 
         "zadd" => {
             if args.len() < 3 {
-               return Value::Error("ERR wrong number of arguments for 'zadd' command".to_string()) 
+                return Value::Error("ERR wrong number of arguments for 'zadd' command".to_string());
             }
 
             let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
@@ -2107,138 +2111,145 @@ async fn execute_command(
 
             let mut db_lock = db.lock().unwrap();
 
-            
             match db_lock.get_mut(&key) {
                 Some(db_val) => match db_val.value {
-            DataType::SortedSet(ref mut zset) => {
-                let added = zset.add(member, score);
-                db_val.version += 1;
-                Value::Integer(added as i64)
-            } 
-            _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
-        },
-        None => {
-            let mut zset = SortedSet {
-                scores: HashMap::new(),
-                sorted_order: BTreeSet::new(),
-            };
-            let added = zset.add(member, score);
-            
-            let new_db_val = DbValue {
-                value: DataType::SortedSet(zset),
-                expires_at: None,
-                version: 1,
-            };
-            
-            db_lock.insert(key, new_db_val);
-            Value::Integer(added as i64)
-        }
+                    DataType::SortedSet(ref mut zset) => {
+                        let added = zset.add(member, score);
+                        db_val.version += 1;
+                        Value::Integer(added as i64)
+                    }
+                    _ => Value::Error(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value"
+                            .to_string(),
+                    ),
+                },
+                None => {
+                    let mut zset = SortedSet {
+                        scores: HashMap::new(),
+                        sorted_order: BTreeSet::new(),
+                    };
+                    let added = zset.add(member, score);
+
+                    let new_db_val = DbValue {
+                        value: DataType::SortedSet(zset),
+                        expires_at: None,
+                        version: 1,
+                    };
+
+                    db_lock.insert(key, new_db_val);
+                    Value::Integer(added as i64)
+                }
             }
-        
-
-
-
-
-
-
-
-            
         }
 
         "zrank" => {
-           if args.len() < 2 {
-            return Value::Error("ERR wrong number of arguments for 'zrank' command".to_string());
-           } 
+            if args.len() < 2 {
+                return Value::Error(
+                    "ERR wrong number of arguments for 'zrank' command".to_string(),
+                );
+            }
 
-           let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-           let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+            let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-           let db_lock = db.lock().unwrap();
+            let db_lock = db.lock().unwrap();
 
-           match db_lock.get(&key) {
-            Some(db_val) => match &db_val.value {
-                DataType::SortedSet(zset) => {
-                    match zset.rank(&member) {
+            match db_lock.get(&key) {
+                Some(db_val) => match &db_val.value {
+                    DataType::SortedSet(zset) => match zset.rank(&member) {
                         Some(rank) => Value::Integer(rank as i64),
                         None => Value::NullBulkString,
-                    }
-                }
-                _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
-            },
-            None => Value::NullBulkString,
-           }
+                    },
+                    _ => Value::Error(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value"
+                            .to_string(),
+                    ),
+                },
+                None => Value::NullBulkString,
+            }
         }
 
         "zrange" => {
-           if args.len() < 3 {
-            return Value::Error("ERR wrong number of arguments for 'zrange' command".to_string())
-           } 
-
-           let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
-           let start_str = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-           let stop_str = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
-
-           let mut start_index: i64 = match start_str.parse() {
-            Ok(idx) => idx,
-            Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
-           };
-
-           let mut stop_index: i64 = match stop_str.parse() {
-            Ok(idx) => idx,
-            Err(_) => return Value::Error("ERR value is not an integer or out of range".to_string()),
-           };
-
-           let db_lock = db.lock().unwrap();
-
-           match db_lock.get(&key) {
-            Some(db_val) => match &db_val.value {
-                DataType::SortedSet(zset) => {
-
-                    let n = zset.sorted_order.len() as i64;
-                    
-                    if start_index < 0 { start_index += n; }
-
-                    if stop_index < 0 { stop_index += n; }
-
-                    if start_index < 0 { start_index = 0; }
-                    if stop_index >= n { stop_index = n - 1; }
-
-                    if start_index >= n || start_index > stop_index { return Value::Array(vec![]); }
-
-                    let start = start_index as usize;
-
-                    let stop = stop_index as usize;
-
-                    let mut result = Vec::new();
-
-                    let count = stop - start + 1;
-
-                    for item in zset.sorted_order.iter().skip(start).take(count) {
-    result.push(Value::BulkString(item.member.clone()));
-}
-Value::Array(result)
-                    
-                }
-                _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string())
+            if args.len() < 3 {
+                return Value::Error(
+                    "ERR wrong number of arguments for 'zrange' command".to_string(),
+                );
             }
-            None => Value::Array(vec![])
-           }
 
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
+            let start_str = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
+            let stop_str = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
 
+            let mut start_index: i64 = match start_str.parse() {
+                Ok(idx) => idx,
+                Err(_) => {
+                    return Value::Error("ERR value is not an integer or out of range".to_string());
+                }
+            };
 
-           
+            let mut stop_index: i64 = match stop_str.parse() {
+                Ok(idx) => idx,
+                Err(_) => {
+                    return Value::Error("ERR value is not an integer or out of range".to_string());
+                }
+            };
 
+            let db_lock = db.lock().unwrap();
 
+            match db_lock.get(&key) {
+                Some(db_val) => match &db_val.value {
+                    DataType::SortedSet(zset) => {
+                        let n = zset.sorted_order.len() as i64;
+
+                        if start_index < 0 {
+                            start_index += n;
+                        }
+
+                        if stop_index < 0 {
+                            stop_index += n;
+                        }
+
+                        if start_index < 0 {
+                            start_index = 0;
+                        }
+                        if stop_index >= n {
+                            stop_index = n - 1;
+                        }
+
+                        if start_index >= n || start_index > stop_index {
+                            return Value::Array(vec![]);
+                        }
+
+                        let start = start_index as usize;
+
+                        let stop = stop_index as usize;
+
+                        let mut result = Vec::new();
+
+                        let count = stop - start + 1;
+
+                        for item in zset.sorted_order.iter().skip(start).take(count) {
+                            result.push(Value::BulkString(item.member.clone()));
+                        }
+                        Value::Array(result)
+                    }
+                    _ => Value::Error(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value"
+                            .to_string(),
+                    ),
+                },
+                None => Value::Array(vec![]),
+            }
         }
 
         "zcard" => {
             if args.len() < 1 {
-                return Value::Error("ERR wrong number of arguments for 'zcard' command".to_string())
+                return Value::Error(
+                    "ERR wrong number of arguments for 'zcard' command".to_string(),
+                );
             }
 
             let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
@@ -2246,157 +2257,173 @@ Value::Array(result)
             let db_lock = db.lock().unwrap();
 
             match db_lock.get(&key) {
-                Some(db_val) => {
-                    match &db_val.value {
-                        DataType::SortedSet(zset) => {
-                            let len = zset.sorted_order.len() as i64;
+                Some(db_val) => match &db_val.value {
+                    DataType::SortedSet(zset) => {
+                        let len = zset.sorted_order.len() as i64;
 
-                            return Value::Integer(len)
-                        }
-
-                        _ => {
-                           Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()) 
-                        }
+                        return Value::Integer(len);
                     }
-                }
-                None => Value::Integer(0)
+
+                    _ => Value::Error(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value"
+                            .to_string(),
+                    ),
+                },
+                None => Value::Integer(0),
             }
         }
 
         "zscore" => {
-    if args.len() < 2 {
-        return Value::Error("ERR wrong number of arguments for 'zscore' command".to_string());
-    }
-
-    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-    let target_member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-    let db_lock = db.lock().unwrap();
-
-    match db_lock.get(&key) {
-        Some(db_val) => match &db_val.value {
-            DataType::SortedSet(zset) => match zset.scores.get(&target_member) {
-                Some(score) => Value::BulkString(score.to_string()),
-                None => Value::NullBulkString,
-            },
-            _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
-        },
-        None => Value::NullBulkString,
-    }
-}
-
-"zrem" => {
-    if args.len() < 2 {
-        return Value::Error("ERR wrong number of arguments for 'zrem' command".to_string());
-    }
-
-    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-    let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-    let mut db_lock = db.lock().unwrap();
-
-    match db_lock.get_mut(&key) {
-        Some(db_val) => match &mut db_val.value {
-            DataType::SortedSet( zset) => {
-                let count = if zset.remove(&member) {
-                    db_val.version += 1;
-                    1
-                } else {
-                    0
-                };
-                Value::Integer(count)
+            if args.len() < 2 {
+                return Value::Error(
+                    "ERR wrong number of arguments for 'zscore' command".to_string(),
+                );
             }
-            _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
-        },
-        None => Value::Integer(0),
-    }
-}
+
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let target_member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+            let db_lock = db.lock().unwrap();
+
+            match db_lock.get(&key) {
+                Some(db_val) => match &db_val.value {
+                    DataType::SortedSet(zset) => match zset.scores.get(&target_member) {
+                        Some(score) => Value::BulkString(score.to_string()),
+                        None => Value::NullBulkString,
+                    },
+                    _ => Value::Error(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value"
+                            .to_string(),
+                    ),
+                },
+                None => Value::NullBulkString,
+            }
+        }
+
+        "zrem" => {
+            if args.len() < 2 {
+                return Value::Error(
+                    "ERR wrong number of arguments for 'zrem' command".to_string(),
+                );
+            }
+
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+            let mut db_lock = db.lock().unwrap();
+
+            match db_lock.get_mut(&key) {
+                Some(db_val) => match &mut db_val.value {
+                    DataType::SortedSet(zset) => {
+                        let count = if zset.remove(&member) {
+                            db_val.version += 1;
+                            1
+                        } else {
+                            0
+                        };
+                        Value::Integer(count)
+                    }
+                    _ => Value::Error(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value"
+                            .to_string(),
+                    ),
+                },
+                None => Value::Integer(0),
+            }
+        }
 
         "geoadd" => {
-    if args.len() < 4 {
-        return Value::Error("ERR wrong number of arguments for 'geoadd' command".to_string());
-    }
-
-    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-    let longitude_str = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-    let latitude_str = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
-    let member = unpack_bulk_str(args.get(3).cloned().unwrap()).unwrap();
-
-    let longitude = match longitude_str.parse::<f64>() {
-        Ok(s) => s,
-        Err(_) => return Value::Error("ERR value is not a valid float".to_string()),
-    };
-
-    let latitude = match latitude_str.parse::<f64>() {
-        Ok(s) => s,
-        Err(_) => return Value::Error("ERR value is not a valid float".to_string()),
-    };
-
-    if longitude < -180.0 || longitude > 180.0 || latitude < -85.05112878 || latitude > 85.05112878 {
-        return Value::Error(format!(
-            "ERR invalid longitude,latitude pair {},{}",
-            longitude_str, latitude_str
-        ));
-    }
-
-    let score = encode_geohash(longitude, latitude);
-    let mut db_lock = db.lock().unwrap();
-
-    match db_lock.get_mut(&key) {
-        Some(db_val) => match &mut db_val.value {
-            DataType::SortedSet(zset) => {
-                let added = zset.add(member, score);
-                if added > 0 {
-                    db_val.version += 1;
-                }
-                Value::Integer(added as i64)
+            if args.len() < 4 {
+                return Value::Error(
+                    "ERR wrong number of arguments for 'geoadd' command".to_string(),
+                );
             }
-            _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
-        },
-        None => {
-            let mut new_zset = SortedSet {
-                scores: HashMap::new(),
-                sorted_order: BTreeSet::new(),
+
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let longitude_str = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+            let latitude_str = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
+            let member = unpack_bulk_str(args.get(3).cloned().unwrap()).unwrap();
+
+            let longitude = match longitude_str.parse::<f64>() {
+                Ok(s) => s,
+                Err(_) => return Value::Error("ERR value is not a valid float".to_string()),
             };
-            new_zset.add(member, score);
-            db_lock.insert(
-                key,
-                DbValue {
-                    value: DataType::SortedSet(new_zset),
-                    expires_at: None,
-                    version: 0,
+
+            let latitude = match latitude_str.parse::<f64>() {
+                Ok(s) => s,
+                Err(_) => return Value::Error("ERR value is not a valid float".to_string()),
+            };
+
+            if longitude < -180.0
+                || longitude > 180.0
+                || latitude < -85.05112878
+                || latitude > 85.05112878
+            {
+                return Value::Error(format!(
+                    "ERR invalid longitude,latitude pair {},{}",
+                    longitude_str, latitude_str
+                ));
+            }
+
+            let score = encode_geohash(longitude, latitude);
+            let mut db_lock = db.lock().unwrap();
+
+            match db_lock.get_mut(&key) {
+                Some(db_val) => match &mut db_val.value {
+                    DataType::SortedSet(zset) => {
+                        let added = zset.add(member, score);
+                        if added > 0 {
+                            db_val.version += 1;
+                        }
+                        Value::Integer(added as i64)
+                    }
+                    _ => Value::Error(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value"
+                            .to_string(),
+                    ),
                 },
-            );
-            Value::Integer(1)
-        }
-    }
-}
-
-"geopos" => {
-    if args.len() < 2 {
-        return Value::Error("ERR wrong number of arguments for 'geopos' command".to_string());
-    }
-
-    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
-    let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-    let db_lock = db.lock().unwrap();
-
-    match db_lock.get_mut(&key) {
-        Some(db_val) => {
-            match db_val.value {
-                Value::SortedSet(zset) => {
-
+                None => {
+                    let mut new_zset = SortedSet {
+                        scores: HashMap::new(),
+                        sorted_order: BTreeSet::new(),
+                    };
+                    new_zset.add(member, score);
+                    db_lock.insert(
+                        key,
+                        DbValue {
+                            value: DataType::SortedSet(new_zset),
+                            expires_at: None,
+                            version: 0,
+                        },
+                    );
+                    Value::Integer(1)
                 }
-
-                _ => {}
             }
         }
 
-        None => {}
-    }
-}
+        "geopos" => {
+            if args.len() < 2 {
+                return Value::Error(
+                    "ERR wrong number of arguments for 'geopos' command".to_string(),
+                );
+            }
+
+            let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+            let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+            let db_lock = db.lock().unwrap();
+
+            match db_lock.get_mut(&key) {
+                Some(db_val) => match db_val.value {
+                    Value::SortedSet(zset) => {}
+
+                    _ => {}
+                },
+
+                None => {}
+            }
+        }
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
