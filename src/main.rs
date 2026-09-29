@@ -2417,7 +2417,7 @@ async fn execute_command(
             match db_lock.get_mut(&key) {
                 Some(db_val) => match db_val.value {
                     Value::SortedSet(zset) => {}
-                    zset= 1
+                    
                     _ => {}
                 },
 
