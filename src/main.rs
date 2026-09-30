@@ -2418,7 +2418,7 @@ async fn execute_command(
                 Some(db_val) => match db_val.value {
                     Value::SortedSet(zset) => {}
                     
-                    _ => {}
+                    _ => 
                 },
 
                 None => {}
