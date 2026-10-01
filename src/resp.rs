@@ -92,7 +92,7 @@ impl Value {
             }
 
             Value::None => Vec::new(),
-
+new vec = vec::new();
             Value::SortedSet(set) => {
                 let items: Vec<Value> = set
                     .sorted_order
