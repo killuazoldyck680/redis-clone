@@ -2095,7 +2095,9 @@ async fn execute_command(
 
         "zadd" => {
             if args.len() < 3 {
-                return Value::Error("ERR wrong number of arguments for 'zadd' command".to_string());
+                return Value::Error(
+                    "ERR wrong number of arguments for 'zadd' command".to_string(),
+                );
             }
 
             let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
@@ -2417,7 +2419,7 @@ async fn execute_command(
             match db_lock.get_mut(&key) {
                 Some(db_val) => match db_val.value {
                     Value::SortedSet(zset) => {}
-                    
+
                     _ => {}
                 },
 
