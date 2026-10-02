@@ -382,8 +382,19 @@ let score_bits = score as u64;
 let x = score_bits;
 let y = score_bits >> 1;
 
+let grid_lat_num = compact_int64_to_int32(x) as f64;
+    let grid_long_num = compact_int64_to_int32(y) as f64;
+
 let lat_min = MIN_LAT + LAT_RANGE * (grid_lat_num / SCALE_2_26);
     let lat_max = MIN_LAT + LAT_RANGE * ((grid_lat_num + 1.0) / SCALE_2_26);
+
+    let long_min = MIN_LONG + LONG_RANGE * (grid_long_num / SCALE_2_26);
+    let long_max = MIN_LONG + LONG_RANGE * ((grid_long_num + 1.0) / SCALE_2_26);
+
+    let latitude = (lat_min + lat_max) / 2.0;
+    let longitude = (long_min + long_max) / 2.0;
+
+    (longitude, latitude)
  }
 
 // --- Main Application Loop ---
