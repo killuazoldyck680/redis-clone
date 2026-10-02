@@ -2433,11 +2433,20 @@ async fn execute_command(
                         }
                     }
 
-                    _ => {}
+                    _ => {
+                        for _ in members {
+                            results.push(Value::NullArray);
+                        }
+                    }
                 },
 
-                None => {}
+                None => {
+                    for _ in members {
+                        results.push(Value::NullArray);
+                    }
+                }
             }
+            Value::Array(results)
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
