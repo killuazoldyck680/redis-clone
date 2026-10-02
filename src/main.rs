@@ -2412,7 +2412,7 @@ async fn execute_command(
 
             let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-            let members = args[1..].iter().filter_map(|arg| unpack_bulk_str(arg.clone()).ok()).collect();
+            let members: Vec<String> = args[1..].iter().filter_map(|arg| unpack_bulk_str(arg.clone()).ok()).collect();
 
             let mut results = Vec::with_capacity(members.len());
 
@@ -2420,7 +2420,18 @@ async fn execute_command(
 
             match db_lock.get_mut(&key) {
                 Some(db_val) => match db_val.value {
-                    Value::SortedSet(zset) => {}
+                    Value::SortedSet(zset) => {
+                        for member in members {
+                            if zset.scores.contains_key(&member) {
+                                results.push(Value::Array(vec![
+                                    Value::BulkString("0".to_string()),
+                                    Value::BulkString("0".to_tring()),
+                                ]));
+                            } else {
+                                results.push(Value::NullArray);
+                            }
+                        }
+                    }
 
                     _ => {}
                 },
