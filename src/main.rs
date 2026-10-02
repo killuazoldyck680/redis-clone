@@ -2412,7 +2412,7 @@ async fn execute_command(
 
             let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-            let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+            let members = args[1..].iter().filter_map(|arg| unpack_bulk_str(arg.clone()).ok()).collect();
 
             let member_store = Vec::new();
 
