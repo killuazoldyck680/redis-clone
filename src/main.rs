@@ -2465,11 +2465,13 @@ async fn execute_command(
                 Some(db_val) => match &db_val.value {
                     DataType::SortedSet(zset) => {
                         for member in members {
-                            if zset.scores.contains_key(&member) {
+                            if let Some(score) = zset.scores.get(&member) {
+                                let (long, lat) = decode_geohash(*score);
+
                                 results.push(Value::Array(vec![
-                                    Value::BulkString("0".to_string()),
-                                    Value::BulkString("0".to_string()),
-                                ]));
+    Value::BulkString(long.to_string()),
+    Value::BulkString(lat.to_string()),
+]));
                             } else {
                                 results.push(Value::NullArray);
                             }
