@@ -363,6 +363,8 @@ fn compact_int64_to_int32(mut v: u64) -> u32 {
     v = (v | (v >> 4)) & 0x00FF_00FF_00FF_00FF;
     v = (v | (v >> 8)) & 0x0000_FFFF_0000_FFFF;
     v = (v | (v >> 16)) & 0x0000_0000_FFFF_FFFF;
+
+    v as u32
 }
 
 fn decode_geohash(score: f64) -> (f64, f64) {  }
