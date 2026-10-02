@@ -357,6 +357,12 @@ fn encode_geohash(longitude: f64, latitude: f64) -> f64 {
 fn compact_int64_to_int32(mut v: u64) -> u32 {
 
     v &= 0x5555_5555_5555_5555;
+
+    v = (v | (v >> 1)) & 0x3333_3333_3333_3333;
+    v = (v | (v >> 2)) & 0x0F0F_0F0F_0F0F_0F0F;
+    v = (v | (v >> 4)) & 0x00FF_00FF_00FF_00FF;
+    v = (v | (v >> 8)) & 0x0000_FFFF_0000_FFFF;
+    v = (v | (v >> 16)) & 0x0000_0000_FFFF_FFFF;
 }
 
 fn decode_geohash(score: f64) -> (f64, f64) {  }
