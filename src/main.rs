@@ -376,6 +376,14 @@ const LONG_RANGE: f64 = 360.0;
 
 // 2^26 scaling factor
 const SCALE_2_26: f64 = (1u64 << 26) as f64;
+
+let score_bits = score as u64;
+
+let x = score_bits;
+let y = score_bits >> 1;
+
+let lat_min = MIN_LAT + LAT_RANGE * (grid_lat_num / SCALE_2_26);
+    let lat_max = MIN_LAT + LAT_RANGE * ((grid_lat_num + 1.0) / SCALE_2_26);
  }
 
 // --- Main Application Loop ---
