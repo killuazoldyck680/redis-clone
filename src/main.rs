@@ -354,8 +354,12 @@ fn encode_geohash(longitude: f64, latitude: f64) -> f64 {
     hash_bits as f64
 }
 
-fn compact_int64_to_int32(mut v: u64) -> u32 {}
+fn compact_int64_to_int32(mut v: u64) -> u32 {
 
+    v &= 0x5555_5555_5555_5555;
+}
+
+fn decode_geohash(score: f64) -> (f64, f64) {  }
 
 // --- Main Application Loop ---
 
