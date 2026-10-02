@@ -2414,6 +2414,8 @@ async fn execute_command(
 
             let member = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
+            let member_store = Vec::new();
+
             let db_lock = db.lock().unwrap();
 
             match db_lock.get_mut(&key) {
