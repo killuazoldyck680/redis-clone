@@ -2416,16 +2416,16 @@ async fn execute_command(
 
             let mut results = Vec::with_capacity(members.len());
 
-            let db_lock = db.lock().unwrap();
+            let mut db_lock = db.lock().unwrap();
 
             match db_lock.get_mut(&key) {
-                Some(db_val) => match db_val.value {
-                    Value::SortedSet(zset) => {
+                Some(db_val) => match &db_val.value {
+                    DataType::SortedSet(zset) => {
                         for member in members {
                             if zset.scores.contains_key(&member) {
                                 results.push(Value::Array(vec![
                                     Value::BulkString("0".to_string()),
-                                    Value::BulkString("0".to_tring()),
+                                    Value::BulkString("0".to_string()),
                                 ]));
                             } else {
                                 results.push(Value::NullArray);
