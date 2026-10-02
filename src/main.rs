@@ -2414,7 +2414,7 @@ async fn execute_command(
 
             let members = args[1..].iter().filter_map(|arg| unpack_bulk_str(arg.clone()).ok()).collect();
 
-            let member_store = Vec::new();
+            let mut results = Vec::with_capacity(members.len());
 
             let db_lock = db.lock().unwrap();
 
