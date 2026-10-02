@@ -367,7 +367,16 @@ fn compact_int64_to_int32(mut v: u64) -> u32 {
     v as u32
 }
 
-fn decode_geohash(score: f64) -> (f64, f64) {  }
+fn decode_geohash(score: f64) -> (f64, f64) { 
+
+    const MIN_LAT: f64 = -85.05112878;
+const LAT_RANGE: f64 = 170.10225756;
+const MIN_LONG: f64 = -180.0;
+const LONG_RANGE: f64 = 360.0;
+
+// 2^26 scaling factor
+const SCALE_2_26: f64 = (1u64 << 26) as f64;
+ }
 
 // --- Main Application Loop ---
 
