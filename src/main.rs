@@ -2604,6 +2604,19 @@ async fn execute_command(
 
            let unit = unpack_bulk_str(args.get(6).cloned().unwrap()).unwrap();
 
+           let distance = match unit.to_lowercase().as_str() {
+                    "m" => radius,
+                    "km" => radius / 1000.0,
+                    "mi" => radius / 1609.34,
+                    "ft" => radius / 0.3048,
+                    _ => {
+                        return Value::Error(
+                            "ERR unsupported unit provided. please use m, km, ft, mi".to_string(),
+                        );
+                    }
+                };
+
+
 
 
 
