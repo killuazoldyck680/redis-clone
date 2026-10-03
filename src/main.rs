@@ -2495,8 +2495,16 @@ async fn execute_command(
         }
 
         "geodist" => {
-            if args < 3 {
+            if args.len() < 3 {
                 Value::Error("ERR wrong number of arguments for 'geodist' command".to_string())
+            }
+
+            let key_string = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            
+
+            let key = match key_string {
+                Ok(s) => s,
+                Err(_) => Value::Null
             }
         }
         _ => Value::Error("ERR unknown command".to_string()),
