@@ -2546,7 +2546,22 @@ async fn execute_command(
 
             match db_lock.get_mut(&key) {
                Some(db_val) => match db_val.value {
-                DataType::SortedSet(zset) => {},
+                DataType::SortedSet(zset) => {
+                    let score1 = match zset.scores.get(&member1) {
+                        Some(s) => s,
+                        None() => return Value::NullBulkString,
+                    };
+
+                    let score2 = match zset.scores.get(&member2) {
+                        Some(s) => s,
+                        None() => return Value::NullBulkString,
+                    };
+
+                   let (lon1, lat1) = decode_geohash(*score1);
+                let (lon2, lat2) = decode_geohash(*score2); 
+
+
+                },
                 _ => return Value::NullBulkString
                } 
 
