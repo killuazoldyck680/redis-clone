@@ -2592,7 +2592,12 @@ async fn execute_command(
 
             let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-            
+           let fromlonlat = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+           let longitude = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+
+
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
