@@ -2616,6 +2616,12 @@ async fn execute_command(
                     }
                 };
 
+                let mut db_lock = db.lock().unwrap();
+
+                
+
+
+
 
 
 
