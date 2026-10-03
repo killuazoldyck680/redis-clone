@@ -2521,6 +2521,12 @@ async fn execute_command(
             }
 
 
+            let mut db_lock = db.lock().unwrap();
+
+            match db_lock.get_mut(&key) {
+                
+            }
+
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
