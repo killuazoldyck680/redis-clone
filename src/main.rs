@@ -2501,15 +2501,15 @@ async fn execute_command(
 
             let key = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
                Some(k) => k,
-               None => return Value::NullArray 
+               None => Value::NullBulkString 
             };
 
             let unit = match args.get(3).and_then( |a| unpack_bulk_str(a.clone()).ok()) {
                 Some(s) => s,
-                None => return Value::NullArray
+                None => "M".to_string(),
             }
 
-            let (member1, member2) => match (
+            let (member1, member2) = match (
                 args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()),
 
                 args.get(2).and_then(|a| unpack_bulk_str(a.clone()).ok()),
@@ -2517,7 +2517,7 @@ async fn execute_command(
 
             ) {
                 (Some(m1), Some(m2)) => (m1, m2),
-                None => return Value::NullArray
+                None => return Value::NullBulkString
             }
 
 
@@ -2526,10 +2526,10 @@ async fn execute_command(
             match db_lock.get_mut(&key) {
                Some(db_val) => match db_val.value {
                 DataType::SortedSet(zset) => {},
-                None => return Value::NullArray,
+                _ => return Value::NullBulkString
                } 
 
-               None => return Value::NullArray,
+               None => return Value::NullBulkString
             }
 
         }
