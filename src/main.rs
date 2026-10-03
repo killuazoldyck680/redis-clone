@@ -2610,11 +2610,11 @@ let lat: f64 = latitude.parse().unwrap();
 
 let rad: f64 = radius.parse().unwrap();
 
-           let distance = match unit.to_lowercase().as_str() {
-                    "m" => radius,
-                    "km" => radius * 1000.0,
-                    "mi" => radius * 1609.34,
-                    "ft" => radius * 0.3048,
+           let search_radius_in_meters = match unit.to_lowercase().as_str() {
+                    "m" => rad,
+                    "km" => rad * 1000.0,
+                    "mi" => rad * 1609.34,
+                    "ft" => rad * 0.3048,
                     _ => {
                         return Value::Error(
                             "ERR unsupported unit provided. please use m, km, ft, mi".to_string(),
@@ -2625,13 +2625,27 @@ let rad: f64 = radius.parse().unwrap();
                 let mut db_lock = db.lock().unwrap();
 
               match db_lock.get_mut(&key) {
-                Some(db_val) => match db_val.value {
+                Some(db_val) => match &db_val.value {
                     DataType::SortedSet(zset) => {
-                       let mut matching_members = Vec::new();s 
+                       let mut matching_members = Vec::new();
+
+                       for (member, score) in &zset.scores {
+    let (m_lon, m_lat) = decode_geohash(*score);
+    let dist = haversine_distance(lon, lat, m_lon, m_lat);
+    if dist <= search_radius_in_meters {
+        matching_members.push(Value::BulkString(member.clone()));
+    }
+}
+
+
+
+                       
                     }
                 }
 
                 None => return Value::Array(vec![])
+
+                return Value::Array(matching_members)
               }  
 
 
