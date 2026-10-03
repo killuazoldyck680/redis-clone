@@ -2495,7 +2495,9 @@ async fn execute_command(
         }
 
         "geodist" => {
-            
+            if args < 3 {
+                Value::Error("ERR wrong number of arguments for 'geodist' command".to_string())
+            }
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
