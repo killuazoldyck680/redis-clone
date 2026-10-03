@@ -2500,9 +2500,18 @@ async fn execute_command(
             }
 
             let key_string = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-            
+
+            let member_string = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+
+
 
             let key = match key_string {
+                Ok(s) => s,
+                Err(_) => Value::Null
+            }
+
+            let member = match member_string {
                 Ok(s) => s,
                 Err(_) => Value::Null
             }
