@@ -2524,7 +2524,12 @@ async fn execute_command(
             let mut db_lock = db.lock().unwrap();
 
             match db_lock.get_mut(&key) {
-                
+               Some(db_val) => match db_val.value {
+                DataType::SortedSet(zset) => {},
+                None => return Value::NullArray,
+               } 
+
+               None => return Value::NullArray,
             }
 
         }
