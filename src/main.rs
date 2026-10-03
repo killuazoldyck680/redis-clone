@@ -2493,6 +2493,10 @@ async fn execute_command(
             }
             Value::Array(results)
         }
+
+        "geodist" => {
+            
+        }
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
