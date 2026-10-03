@@ -2604,11 +2604,17 @@ async fn execute_command(
 
            let unit = unpack_bulk_str(args.get(6).cloned().unwrap()).unwrap();
 
+           let lon: f64 = longitude.parse().unwrap();
+
+let lat: f64 = latitude.parse().unwrap();
+
+let rad: f64 = radius.parse().unwrap();
+
            let distance = match unit.to_lowercase().as_str() {
                     "m" => radius,
-                    "km" => radius / 1000.0,
-                    "mi" => radius / 1609.34,
-                    "ft" => radius / 0.3048,
+                    "km" => radius * 1000.0,
+                    "mi" => radius * 1609.34,
+                    "ft" => radius * 0.3048,
                     _ => {
                         return Value::Error(
                             "ERR unsupported unit provided. please use m, km, ft, mi".to_string(),
@@ -2618,7 +2624,15 @@ async fn execute_command(
 
                 let mut db_lock = db.lock().unwrap();
 
-                
+              match db_lock.get_mut(&key) {
+                Some(db_val) => match db_val.value {
+                    DataType::SortedSet(zset) => {
+                       let mut matching_members = Vec::new();s 
+                    }
+                }
+
+                None => return Value::Array(vec![])
+              }  
 
 
 
