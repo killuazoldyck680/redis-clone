@@ -397,6 +397,10 @@ let lat_min = MIN_LAT + LAT_RANGE * (grid_lat_num / SCALE_2_26);
     (longitude, latitude)
  }
 
+fn haversine_distance(lon1: f64, lat1: f64, lon2: f64, lat2: f64) -> f64 {
+    
+}
+
 // --- Main Application Loop ---
 
 #[tokio::main]
