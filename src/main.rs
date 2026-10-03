@@ -2637,15 +2637,17 @@ let rad: f64 = radius.parse().unwrap();
     }
 }
 
+Value::Array(matching_members)
+
 
 
                        
                     }
-                }
 
-                None => return Value::Array(vec![])
+                  _ => Value::Array(vec![]),  
+                },
 
-                return Value::Array(matching_members)
+                None => Value::Array(vec![]),
               }  
 
 
