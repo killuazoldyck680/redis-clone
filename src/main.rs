@@ -2584,6 +2584,10 @@ async fn execute_command(
             }
 
         }
+
+        "geosearch" => {
+            
+        }
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
