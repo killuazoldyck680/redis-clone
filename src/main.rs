@@ -2586,7 +2586,9 @@ async fn execute_command(
         }
 
         "geosearch" => {
-            
+            if args.len() < 7 {
+                return Value::Error("ERR wrong number of arguments for 'geosearch' command".to_string())
+            }
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
