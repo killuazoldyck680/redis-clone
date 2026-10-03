@@ -2499,22 +2499,28 @@ async fn execute_command(
                 Value::Error("ERR wrong number of arguments for 'geodist' command".to_string())
             }
 
-            let key_string = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+            let key = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+               Some(k) => k,
+               None => return Value::NullArray 
+            };
 
-            let member_string = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
-
-
-
-
-            let key = match key_string {
-                Ok(s) => s,
-                Err(_) => Value::Null
+            let unit = match args.get(3).and_then( |a| unpack_bulk_str(a.clone()).ok()) {
+                Some(s) => s,
+                None => return Value::NullArray
             }
 
-            let member = match member_string {
-                Ok(s) => s,
-                Err(_) => Value::Null
+            let (member1, member2) => match (
+                args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()),
+
+                args.get(2).and_then(|a| unpack_bulk_str(a.clone()).ok()),
+
+
+            ) {
+                (Some(m1), Some(m2)) => (m1, m2),
+                None => return Value::NullArray
             }
+
+
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
