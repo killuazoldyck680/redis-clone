@@ -2517,18 +2517,18 @@ async fn execute_command(
 
         "geodist" => {
             if args.len() < 3 {
-                Value::Error("ERR wrong number of arguments for 'geodist' command".to_string())
+                return Value::Error("ERR wrong number of arguments for 'geodist' command".to_string())
             }
 
             let key = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
                Some(k) => k,
-               None => Value::NullBulkString 
+               None => return Value::NullBulkString 
             };
 
             let unit = match args.get(3).and_then( |a| unpack_bulk_str(a.clone()).ok()) {
                 Some(s) => s,
-                None => "M".to_string(),
-            }
+                None => "m".to_string(),
+            };
 
             let (member1, member2) = match (
                 args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()),
@@ -2538,29 +2538,44 @@ async fn execute_command(
 
             ) {
                 (Some(m1), Some(m2)) => (m1, m2),
-                None => return Value::NullBulkString
-            }
+                _ => return Value::NullBulkString
+            };
 
 
             let mut db_lock = db.lock().unwrap();
 
             match db_lock.get_mut(&key) {
-               Some(db_val) => match db_val.value {
+               Some(db_val) => match &db_val.value {
                 DataType::SortedSet(zset) => {
                     let score1 = match zset.scores.get(&member1) {
                         Some(s) => s,
-                        None() => return Value::NullBulkString,
+                        None => return Value::NullBulkString,
                     };
 
                     let score2 = match zset.scores.get(&member2) {
                         Some(s) => s,
-                        None() => return Value::NullBulkString,
+                        None => return Value::NullBulkString,
                     };
 
                    let (lon1, lat1) = decode_geohash(*score1);
                 let (lon2, lat2) = decode_geohash(*score2); 
 
+                let meters = haversine_distance(lon1, lat1, lon2, lat2);
 
+                let distance = match unit.to_lowercase().as_str() {
+                    "m" => meters,
+                    "km" => meters / 1000.0,
+                    "mi" => meters / 1609.34,
+                    "ft" => meters / 0.3048,
+                    _ => {
+                        return Value::Error(
+                            "ERR unsupported unit provided. please use m, km, ft, mi".to_string(),
+                        );
+                    }
+                };
+
+                
+                Value::BulkString(distance.to_string())
                 },
                 _ => return Value::NullBulkString
                } 
