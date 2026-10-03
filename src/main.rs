@@ -2594,7 +2594,19 @@ async fn execute_command(
 
            let fromlonlat = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
-           let longitude = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+           let longitude = unpack_bulk_str(args.get(2).cloned().unwrap()).unwrap();
+
+           let latitude = unpack_bulk_str(args.get(3).cloned().unwrap()).unwrap();
+
+           let byradius = unpack_bulk_str(args.get(4).cloned().unwrap()).unwrap();
+
+           let radius = unpack_bulk_str(args.get(5).cloned().unwrap()).unwrap();
+
+           let unit = unpack_bulk_str(args.get(6).cloned().unwrap()).unwrap();
+
+
+
+
 
 
 
