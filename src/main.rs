@@ -2665,6 +2665,12 @@ Value::Array(matching_members)
             if args.len() < 1 {
                 return Value::Error("ERR wrong number of arguments for 'acl' command".to_string())
             }
+
+            let first_command = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap().to_lowercase();
+
+            if first
+
+            
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
