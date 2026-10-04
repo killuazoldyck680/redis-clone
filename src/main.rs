@@ -15,7 +15,7 @@ use std::{env, result, string, usize, vec};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::{TcpListener, TcpStream};
-
+use sha2::{Digest, Sha256};
 use anyhow::Result;
 use resp::Value;
 use tokio::stream;
@@ -2675,6 +2675,103 @@ Value::Array(matching_members)
 
 
         }
+        "acl" => {
+
+            if args.len() < 1 {
+
+                return Value::Error("ERR wrong number of arguments for 'acl' command".to_string())
+
+            }
+
+
+
+            let first_command = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap().to_lowercase();
+
+
+
+            if first_command == "whoami" {
+
+                Value::BulkString("default".to_string())
+
+            } else if first_command == "getuser"{
+
+                let username = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+
+                Some(s) => s,
+
+                None => return Value::Error("ERR Unknown subcommand or wrong number of arguments for 'ACL'".to_string())
+
+            };
+
+
+
+           Value::Array(vec![
+
+    Value::BulkString("flags".to_string()),
+
+    Value::Array(vec![Value::BulkString("nopass".to_string())]),
+
+    Value::BulkString("passwords".to_string()),
+
+    Value::Array(vec![]),
+
+])
+
+
+
+            } else if first_command == "setuser"{
+
+                let (default, rule) = match (
+
+                args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()),
+
+
+
+                args.get(2).and_then(|a| unpack_bulk_str(a.clone()).ok()),
+
+
+
+
+
+            ) {
+
+                (Some(u), Some(r)) => (u, r),
+
+                _ => return Value::Error("ERR wrong number of arguments for 'acl|setuser' command".to_string())
+
+            };
+
+
+
+           
+
+
+
+
+
+            }
+
+           
+
+           
+
+             else {
+
+               Value::Error("ERR Unknown subcommand or wrong number of arguments for 'ACL'".to_string())
+
+            }
+
+
+
+           
+
+
+
+           
+
+        } 
+
+
 
         _ => Value::Error("ERR unknown command".to_string()),
     }
