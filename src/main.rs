@@ -2668,7 +2668,11 @@ Value::Array(matching_members)
 
             let first_command = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap().to_lowercase();
 
-            if first
+            if first_command == "whoami" {
+                Value::BulkString("default".to_string())
+            } else {
+               Value::Error("ERR Unknown subcommand or wrong number of arguments for 'ACL'".to_string()) 
+            }
 
             
         }
