@@ -38,9 +38,19 @@ struct DbValue {
     version: usize,
 }
 
+#[derive(Debug)]
 struct User {
     flags: Vec<String>,
     passwords: Vec<String>,
+}
+
+impl Default for User {
+    fn default() -> Self {
+        Self {
+            flags: vec!["nopass".to_string()],
+            passwords: vec![]
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
