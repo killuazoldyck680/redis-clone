@@ -2698,6 +2698,8 @@ Value::Array(matching_members)
     Value::Array(vec![]),
 ])
 
+            } else if first_command == "setuser"{
+
             }
             
             
