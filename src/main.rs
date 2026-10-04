@@ -38,6 +38,11 @@ struct DbValue {
     version: usize,
 }
 
+struct User {
+    flags: Vec<String>,
+    passwords: Vec<String>,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 struct SortedMember {
     score: f64,
