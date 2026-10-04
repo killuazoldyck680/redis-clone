@@ -2662,7 +2662,9 @@ Value::Array(matching_members)
         }
 
         "acl" => {
-            
+            if args.len() < 1 {
+                return Value::Error("ERR wrong number of arguments for 'acl' command".to_string())
+            }
         }
         _ => Value::Error("ERR unknown command".to_string()),
     }
