@@ -2699,6 +2699,19 @@ Value::Array(matching_members)
 ])
 
             } else if first_command == "setuser"{
+                let (default, rule) = match (
+                args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()),
+
+                args.get(2).and_then(|a| unpack_bulk_str(a.clone()).ok()),
+
+
+            ) {
+                (Some(m1), Some(m2)) => (m1, m2),
+                _ => return Value::Error("ERR wrong number of arguments for 'acl|setuser' command".to_string())
+            };
+
+            
+
 
             }
             
