@@ -2678,8 +2678,9 @@ Value::Array(matching_members)
 
             Value::Array(vec![
     Value::BulkString("flags".to_string()),
-    Value::Array(vec![])
+    Value::Array(vec![Value::BulkString("nopass".to_string())])
 ])
+
             }
             
             
