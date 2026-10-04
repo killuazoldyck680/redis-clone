@@ -2676,9 +2676,11 @@ Value::Array(matching_members)
                 None => return Value::Error("ERR Unknown subcommand or wrong number of arguments for 'ACL'".to_string()) 
             };
 
-            Value::Array(vec![
+           Value::Array(vec![
     Value::BulkString("flags".to_string()),
-    Value::Array(vec![Value::BulkString("nopass".to_string())])
+    Value::Array(vec![Value::BulkString("nopass".to_string())]),
+    Value::BulkString("passwords".to_string()),
+    Value::Array(vec![]),
 ])
 
             }
