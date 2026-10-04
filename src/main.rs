@@ -2671,10 +2671,10 @@ Value::Array(matching_members)
             if first_command == "whoami" {
                 Value::BulkString("default".to_string())
             } else if first_command == "getuser"{
-                let username = match args.get(1).and_then(|a| unpack_bulk_str(a.cloned()).ok()) {
+                let username = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
                 Some(s) => s,
                 None => return Value::Error("ERR Unknown subcommand or wrong number of arguments for 'ACL'".to_string()) 
-            }
+            };
 
             Value::Array(vec![
     Value::BulkString("flags".to_string()),
