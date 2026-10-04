@@ -2674,6 +2674,11 @@ Value::Array(matching_members)
                Value::Error("ERR Unknown subcommand or wrong number of arguments for 'ACL'".to_string()) 
             }
 
+            let username = match args.get(1).and_then(|a| unpack_bulk_str(a.cloned()).ok()) {
+                Some(s) => s,
+                None => Value::Error("ERR Unknown subcommand or wrong number of arguments for 'ACL'".to_string()) 
+            }
+
             
         }
         _ => Value::Error("ERR unknown command".to_string()),
