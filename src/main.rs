@@ -2741,6 +2741,24 @@ Value::Array(matching_members)
 
             };
 
+            if let Some(raw_password) = rule.strip_prefix('>') {
+    // Hash raw password bytes using SHA-256
+    let mut hasher = Sha256::new();
+    hasher.update(raw_password.as_bytes());
+    let result = hasher.finalize();
+
+    // Convert digest to lowercase 64-character hex string
+    let password_hash = format!("{:x}", result);
+
+    // Save hash to user account / user state...
+    println!("SHA-256 Hash for user {username}: {password_hash}");
+} else {
+    // Rule does not set a password (e.g. "on", "off", "nopass", etc.)
+}
+
+Value::SimpleString("OK".to_string())
+
+
 
 
            
