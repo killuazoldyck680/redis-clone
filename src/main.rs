@@ -2697,9 +2697,9 @@ Value::Array(matching_members)
         };
 
         // 2. Connect ACL GETUSER to Shared Memory
-        let users_lock = users.lock().unwrap();
+        let db_lock = db.lock().unwrap();
         let default_user = User::default();
-        let user = users_lock.get(&username).unwrap_or(&default_user);
+        let user = db_lock.get(&username).unwrap_or(&default_user);
 
         // Map flags and passwords to RESP BulkString arrays
         let flags_vec: Vec<Value> = user
