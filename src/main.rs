@@ -2703,7 +2703,7 @@ Value::Array(matching_members)
 
         // Map flags and passwords to RESP BulkString arrays
         let flags_vec: Vec<Value> = user
-            .flagsjj
+            .flags
             .iter()
             .map(|f| Value::BulkString(f.clone()))
             .collect();
