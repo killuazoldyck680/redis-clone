@@ -30,12 +30,14 @@ enum DataType {
     List(Vec<String>),
     Stream(Vec<StreamEntry>),
     SortedSet(SortedSet),
+    User(User),
 }
 
 struct DbValue {
     value: DataType,
     expires_at: Option<Instant>,
     version: usize,
+    
 }
 
 #[derive(Debug)]
@@ -2699,8 +2701,13 @@ Value::Array(matching_members)
         // 2. Connect ACL GETUSER to Shared Memory
         let db_lock = db.lock().unwrap();
         let default_user = User::default();
-        let user = db_lock.get(&username).unwrap_or(&default_user);
-
+        let user = match db_lock.get(&username) {
+    Some(db_val) => match &db_val.value {
+        DataType::User(u) => u,
+        _ => &default_user,
+    },
+    None => &default_user,
+};
         // Map flags and passwords to RESP BulkString arrays
         let flags_vec: Vec<Value> = user
             .flags
