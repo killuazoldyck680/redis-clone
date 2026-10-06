@@ -2675,7 +2675,7 @@ Value::Array(matching_members)
 
 
         }
-        "acl" => {
+ "acl" => {
     if args.len() < 1 {
         return Value::Error("ERR wrong number of arguments for 'acl' command".to_string());
     }
@@ -2696,10 +2696,10 @@ Value::Array(matching_members)
             }
         };
 
-        // Lock user store and fetch user entry (or fall back to a default User)
-        let db_lock = db.lock().unwrap();
+        // 2. Connect ACL GETUSER to Shared Memory
+        let users_lock = users.lock().unwrap();
         let default_user = User::default();
-        let user = db_lock.get(&username).unwrap_or(&default_user);
+        let user = users_lock.get(&username).unwrap_or(&default_user);
 
         // Map flags and passwords to RESP BulkString arrays
         let flags_vec: Vec<Value> = user
@@ -2714,7 +2714,7 @@ Value::Array(matching_members)
             .map(|p| Value::BulkString(p.clone()))
             .collect();
 
-        // Return 4-element ACL GETUSER array
+        // Construct and return the 4-element response array
         Value::Array(vec![
             Value::BulkString("flags".to_string()),
             Value::Array(flags_vec),
@@ -2722,11 +2722,11 @@ Value::Array(matching_members)
             Value::Array(passwords_vec),
         ])
     } else if first_command == "setuser" {
-        let (username, rule) = match (
+        let (u, rule) = match (
             args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()),
             args.get(2).and_then(|a| unpack_bulk_str(a.clone()).ok()),
         ) {
-            (Some(u), Some(r)) => (u, r),
+            (Some(username), Some(r)) => (username, r),
             _ => {
                 return Value::Error(
                     "ERR wrong number of arguments for 'acl|setuser' command".to_string(),
@@ -2734,25 +2734,23 @@ Value::Array(matching_members)
             }
         };
 
+        // 1. Update ACL SETUSER State Mutation
         if let Some(raw_password) = rule.strip_prefix('>') {
-            // Hash raw password bytes using SHA-256
+            // Compute SHA-256 Hash
             let mut hasher = Sha256::new();
             hasher.update(raw_password.as_bytes());
-            let result = hasher.finalize();
+            let password_hash = format!("{:x}", hasher.finalize());
 
-            let password_hash = format!("{:x}", result);
-
-            // Lock Mutex and retrieve or insert user entry
+            // Lock Mutex & Retrieve or Insert user by `u`
             let mut users_lock = users.lock().unwrap();
-            let user = users_lock.entry(username).or_insert_with(User::default);
+            let user = users_lock.entry(u).or_insert_with(User::default);
 
-            // Clear "nopass" from flags
+            // Modify User: Clear "nopass" from flags and add the password hash
             user.flags.retain(|flag| flag != "nopass");
-
-            // Add new password hash
             user.passwords.push(password_hash);
         }
 
+        // Return OK at the bottom of the setuser block
         Value::SimpleString("OK".to_string())
     } else {
         Value::Error("ERR Unknown subcommand or wrong number of arguments for 'ACL'".to_string())
