@@ -1322,6 +1322,7 @@ async fn execute_command(
                                 DataType::List(_) => Value::SimpleString("list".to_string()),
                                 DataType::Stream(_) => Value::SimpleString("stream".to_string()),
                                 DataType::SortedSet(_) => Value::SimpleString("zset".to_string()),
+                                DataType::User(_) => Value::SimpleString("user".to_string()),
                             }
                         }
                     } else {
@@ -1330,6 +1331,7 @@ async fn execute_command(
                             DataType::List(_) => Value::SimpleString("list".to_string()),
                             DataType::Stream(_) => Value::SimpleString("stream".to_string()),
                             DataType::SortedSet(_) => Value::SimpleString("zset".to_string()),
+                            DataType::User(_) => Value::SimpleString("user".to_string()),
                         }
                     }
                 }
@@ -2749,12 +2751,18 @@ Value::Array(matching_members)
             let password_hash = format!("{:x}", hasher.finalize());
 
             // Lock Mutex & Retrieve or Insert user by `u`
-            let mut users_lock = users.lock().unwrap();
-            let user = users_lock.entry(u).or_insert_with(User::default);
+            let mut db_lock = db.lock().unwrap();
 
-            // Modify User: Clear "nopass" from flags and add the password hash
-            user.flags.retain(|flag| flag != "nopass");
-            user.passwords.push(password_hash);
+let db_entry = db_lock.entry(u).or_insert_with(|| DbValue {
+    value: DataType::User(User::default()),
+    expires_at: None,
+    version: 0,
+});
+
+if let DataType::User(ref mut user) = db_entry.value {
+    user.flags.retain(|flag| flag != "nopass");
+    user.passwords.push(password_hash);
+}
         }
 
         // Return OK at the bottom of the setuser block
