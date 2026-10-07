@@ -2790,8 +2790,15 @@ if let DataType::User(ref mut user) = db_entry.value {
             DataType::User(u) => u,
             _ => &default_user,
 
-        }
-    }
+        },
+        None > &default_user,
+    };
+
+    let mut hasher = Sha256::new();
+    hasher.update(password.as_bytes());
+    let password_hash = format!("{:x}", hasher.finalize());
+
+    
 
 
 
