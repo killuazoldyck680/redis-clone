@@ -2786,19 +2786,23 @@ if let DataType::User(ref mut user) = db_entry.value {
     let default_user = User::default();
 
     let user = match db_lock.get(&username) {
-        Some(db_val) = match db_val.value {
+        Some(db_val) => match &db_val.value {
             DataType::User(u) => u,
             _ => &default_user,
 
         },
-        None > &default_user,
+        None => &default_user,
     };
 
     let mut hasher = Sha256::new();
     hasher.update(password.as_bytes());
     let password_hash = format!("{:x}", hasher.finalize());
 
-    
+    if user.passwords.contains(&password_hash) {
+        Value::SimpleString("OK".to_string())
+    } else {
+        Value::Error("WRONGPASS invalid username-password pair or user is disabled.".to_string())
+    }
 
 
 
