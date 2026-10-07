@@ -2782,7 +2782,17 @@ if let DataType::User(ref mut user) = db_entry.value {
     let password = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
     let db_lock = db.lock().unwrap();
-    
+
+    let default_user = User::default();
+
+    let user = match db_lock.get(&username) {
+        Some(db_val) = match db_val.value {
+            DataType::User(u) => u,
+            _ => &default_user,
+
+        }
+    }
+
 
 
 }
