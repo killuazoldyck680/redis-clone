@@ -2962,6 +2962,7 @@ async fn handle_conn(
                                             Arc::clone(&sub_registry),
                                             &mut local_subscriptions,
                                             &tx,
+                                            "default"
                                         ).await;
                                         results.push(res);
                                     }
