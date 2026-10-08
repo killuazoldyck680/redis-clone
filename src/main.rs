@@ -2894,25 +2894,6 @@ async fn handle_conn(
     continue;
 }
 
-let response = match cmd_name.as_str() {
-    "auth" => {
-        let result = handle_auth(&args, &db); // or inline "auth" block
-        
-        // Update connection state on successful AUTH
-        if let Value::SimpleString(ref s) = result {
-            if s == "OK" {
-                is_authenticated = true;
-                if let Some(u) = args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
-                    authenticated_user = u;
-                }
-            }
-        }
-        
-        result
-    }
-    // ... other command handlers ("set", "get", "acl", etc.)
-    _ => Value::Error("ERR unknown command".to_string()),
-};
                 let is_getack = cmd_name == "replconf"
                     && args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok ()).map(|s| s.to_lowercase() == "getack").unwrap_or(false);
 
@@ -2927,6 +2908,49 @@ let response = match cmd_name.as_str() {
                     }
                 } else {
                     match cmd_name.as_str() {
+                        "auth" => {
+    let result = if args.len() < 2 {
+        Value::Error("ERR wrong number of arguments for 'auth' command".to_string())
+    } else {
+        let username = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+        let password = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+        let db_lock = db.lock().unwrap();
+        let default_user = User::default();
+
+        let user = match db_lock.get(&username) {
+            Some(db_val) => match &db_val.value {
+                DataType::User(u) => u,
+                _ => &default_user,
+            },
+            None => &default_user,
+        };
+
+        let mut hasher = Sha256::new();
+        hasher.update(password.as_bytes());
+        let password_hash = format!("{:x}", hasher.finalize());
+
+        if user.passwords.contains(&password_hash) {
+            Value::SimpleString("OK".to_string())
+        } else {
+            Value::Error("WRONGPASS invalid username-password pair or user is disabled.".to_string())
+        }
+    };
+
+    // Update connection state on successful AUTH
+    if let Value::SimpleString(ref s) = result {
+        if s == "OK" {
+            is_authenticated = true;
+            if let Some(u) = args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+                authenticated_user = u;
+            }
+        }
+    }
+
+    result
+}
+
+
                         "multi" => {
                             if in_transaction {
                                 Value::Error("ERR MULTI calls cannot be nested".to_string())
