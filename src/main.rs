@@ -2851,7 +2851,9 @@ async fn handle_conn(
         },
         None => &default_user,
     };
-    }
+
+    user.passwords.is_empty()
+    };
 
     let mut watched_versions: std::collections::HashMap<String, usize> =
         std::collections::HashMap::new();
