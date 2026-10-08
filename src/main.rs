@@ -2889,9 +2889,30 @@ async fn handle_conn(
 
                 let cmd_name = command.trim().to_lowercase();
 
-                if !is_authenticated && command_name != "auth" && command_name != "quit" {
-    return Value::Error("NOAUTH Authentication required.".to_string());
+                if !is_authenticated && cmd_name != "auth" && cmd_name != "quit" {
+    let _ = handler.write_value(Value::Error("NOAUTH Authentication required.".to_string())).await;
+    continue;
 }
+
+let response = match cmd_name.as_str() {
+    "auth" => {
+        let result = handle_auth(&args, &db); // or inline "auth" block
+        
+        // Update connection state on successful AUTH
+        if let Value::SimpleString(ref s) = result {
+            if s == "OK" {
+                is_authenticated = true;
+                if let Some(u) = args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+                    authenticated_user = u;
+                }
+            }
+        }
+        
+        result
+    }
+    // ... other command handlers ("set", "get", "acl", etc.)
+    _ => Value::Error("ERR unknown command".to_string()),
+};
                 let is_getack = cmd_name == "replconf"
                     && args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok ()).map(|s| s.to_lowercase() == "getack").unwrap_or(false);
 
