@@ -2839,6 +2839,7 @@ async fn handle_conn(
     let mut in_transaction = false;
     let mut command_queue: Vec<Value> = Vec::new();
     let mut is_authenticated = true;
+    let mut authenticated_user = String::from("default");
     let mut watched_versions: std::collections::HashMap<String, usize> =
         std::collections::HashMap::new();
 
