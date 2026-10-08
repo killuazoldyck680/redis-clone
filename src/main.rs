@@ -2838,8 +2838,13 @@ async fn handle_conn(
 
     let mut in_transaction = false;
     let mut command_queue: Vec<Value> = Vec::new();
-    let mut is_authenticated = true;
-    let mut authenticated_user = String::from("default");
+    let mut authenticated_user = "default".to_string();
+
+    let mut is_authenticated = {
+       let db_lock = db.lock().unwrap();
+    let default_user = User::default(); 
+    }
+
     let mut watched_versions: std::collections::HashMap<String, usize> =
         std::collections::HashMap::new();
 
