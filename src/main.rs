@@ -2843,6 +2843,14 @@ async fn handle_conn(
     let mut is_authenticated = {
        let db_lock = db.lock().unwrap();
     let default_user = User::default(); 
+
+    let user = match db_lock.get("default") {
+        Some(db_val) => match &db_val.value {
+            DataType::User(u) => u,
+            _ => &default_user,
+        },
+        None => &default_user,
+    };
     }
 
     let mut watched_versions: std::collections::HashMap<String, usize> =
