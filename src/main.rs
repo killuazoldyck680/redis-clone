@@ -2888,8 +2888,14 @@ async fn handle_conn(
                 };
 
                 let cmd_name = command.trim().to_lowercase();
+
+                if !is_authenticated && command_name != "auth" && command_name != "quit" {
+    return Value::Error("NOAUTH Authentication required.".to_string());
+}
                 let is_getack = cmd_name == "replconf"
-                    && args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()).map(|s| s.to_lowercase() == "getack").unwrap_or(false);
+                    && args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok ()).map(|s| s.to_lowercase() == "getack").unwrap_or(false);
+
+
 
                 let response = if in_transaction && cmd_name != "exec" && cmd_name != "discard" {
                     if cmd_name == "watch" {
