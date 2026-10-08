@@ -596,6 +596,7 @@ async fn main() {
                                     Arc::clone(&sub_registry),
                                     &mut HashSet::new(),
                                     &dummy_tx,
+                                    "default",
                                 )
                                 .await;
                             }
@@ -806,6 +807,7 @@ async fn execute_command(
     sub_registry: Arc<Mutex<HashMap<String, Vec<tokio::sync::mpsc::UnboundedSender<Value>>>>>,
     local_subscriptions: &mut HashSet<String>,
     tx: &tokio::sync::mpsc::UnboundedSender<Value>,
+    authenticated_user: &str,
 ) -> Value {
     let master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
@@ -2689,7 +2691,7 @@ Value::Array(matching_members)
         .to_lowercase();
 
     if first_command == "whoami" {
-        Value::BulkString("default".to_string())
+        Value::BulkString(authenticated_user.to_string())
     } else if first_command == "getuser" {
         let username = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
             Some(s) => s,
@@ -3013,6 +3015,7 @@ async fn handle_conn(
                             Arc::clone(&sub_registry),
                             &mut local_subscriptions,
                             &tx,
+                            &authenticated_user,
                         ).await,
                     }
                 };
