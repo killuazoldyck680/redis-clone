@@ -2998,8 +2998,8 @@ async fn handle_conn(
                         "watch" => {
                             let db_lock = db.lock().unwrap();
 
-                            for arg in args {
-                                if let Ok(key_str) = unpack_bulk_str(arg) {
+                            for arg in &args {
+                                if let Ok(key_str) = unpack_bulk_str(arg.clone()) {
                                     let version = db_lock
                                         .get(&key_str)
                                         .map(|entry| entry.version)
