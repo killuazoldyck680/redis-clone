@@ -2811,7 +2811,9 @@ if let DataType::User(ref mut user) = db_entry.value {
 }
 
 "setbit" => {
-    
+    if args.len() < 3 {
+        return Value::Error("ERR bit offset or value is an integer or out of range")
+    }
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
