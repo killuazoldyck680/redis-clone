@@ -2891,6 +2891,18 @@ async fn handle_conn(
 
                 let cmd_name = command.trim().to_lowercase();
 
+                let target_user = if cmd_name == "auth" {
+    if args.len() == 1 {
+        "default".to_string()
+    } else {
+        args.get(0)
+            .and_then(|a| unpack_bulk_str(a.clone()).ok())
+            .unwrap_or_else(|| "default".to_string())
+    }
+} else {
+    "default".to_string()
+};
+
                 if !is_authenticated && cmd_name != "auth" && cmd_name != "quit" {
     let _ = handler.write_value(Value::Error("NOAUTH Authentication required.".to_string())).await;
     continue;
@@ -3023,15 +3035,13 @@ async fn handle_conn(
                 };
 
                 if cmd_name == "auth" {
-        if let Value::SimpleString(ref s) = response {
-            if s == "OK" {
-                is_authenticated = true;
-                if let Some(u) = args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
-                    authenticated_user = u;
-                }
-            }
+    if let Value::SimpleString(ref s) = response {
+        if s == "OK" {
+            is_authenticated = true;
+            authenticated_user = target_user;
         }
     }
+}
 
                 if matches!(response, Value::None) {
                     if is_master_connection {
