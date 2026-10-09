@@ -2821,6 +2821,11 @@ if let DataType::User(ref mut user) = db_entry.value {
         Some(s) => s,
         None(_) => Value::Error("ERR bit offset or value is an integer or out of range")
     }
+
+    let value = match args.get(2).and_then(|a|unpack_bulk_str(a.clone()).ok()) {
+        Some(s) => s,
+        None(_) => Value::Error("ERR bit offset or value is an integer or out of range")
+    }
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
