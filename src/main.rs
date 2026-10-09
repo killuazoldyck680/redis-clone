@@ -2896,6 +2896,7 @@ async fn handle_conn(
     continue;
 }
 
+
                 let is_getack = cmd_name == "replconf"
                     && args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok ()).map(|s| s.to_lowercase() == "getack").unwrap_or(false);
 
@@ -3020,6 +3021,17 @@ async fn handle_conn(
                         ).await,
                     }
                 };
+
+                if cmd_name == "auth" {
+        if let Value::SimpleString(ref s) = response {
+            if s == "OK" {
+                is_authenticated = true;
+                if let Some(u) = args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+                    authenticated_user = u;
+                }
+            }
+        }
+    }
 
                 if matches!(response, Value::None) {
                     if is_master_connection {
