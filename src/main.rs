@@ -2831,6 +2831,8 @@ if let DataType::User(ref mut user) = db_entry.value {
         Some(v) if v == 0 || v == 1 => v,
         _ => return Value::Error("ERR bit is not an integer or out of range".to_string()),
     };
+
+    Value::Integer(0)
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
