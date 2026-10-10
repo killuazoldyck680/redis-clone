@@ -2835,6 +2835,10 @@ if let DataType::User(ref mut user) = db_entry.value {
     Value::Integer(0)
 }
 
+"getbit" => {
+    
+}
+
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
