@@ -2851,6 +2851,8 @@ if let DataType::User(ref mut user) = db_entry.value {
         None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
     };
 
+    let db_lock = db.lock().unwrap();
+
 
 }
 
