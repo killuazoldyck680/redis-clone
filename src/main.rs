@@ -2837,7 +2837,7 @@ if let DataType::User(ref mut user) = db_entry.value {
 
 "getbit" => {
     if args.len() < 2 {
-        return Value::Error("ERR bit is not an integer or out of range".to_string()),
+        return Value::Error("ERR bit is not an integer or out of range".to_string())
 
     }
 
@@ -2852,6 +2852,11 @@ if let DataType::User(ref mut user) = db_entry.value {
     };
 
     let db_lock = db.lock().unwrap();
+
+    match db_lock.get_mut(&key) {
+        Some(db_val) => {}
+        None => Value::Integer(0)
+    }
 
 
 }
