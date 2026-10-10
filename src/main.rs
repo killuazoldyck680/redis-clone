@@ -2824,10 +2824,13 @@ if let DataType::User(ref mut user) = db_entry.value {
         Some(o) => o,
         None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
     };
-    let value = match args.get(2).and_then(|a|unpack_bulk_str(a.clone()).ok()).parse::<u8>()() {
-        value == 0 || value == 1 => value,
-        None => Value::Error("ERR bit offset or value is an integer or out of range")
-    }
+    let value: u8 = match args.get(2)
+        .and_then(|a| unpack_bulk_str(a.clone()).ok())
+        .and_then(|s| s.parse().ok())
+    {
+        Some(v) if v == 0 || v == 1 => v,
+        _ => return Value::Error("ERR bit is not an integer or out of range".to_string()),
+    };
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
