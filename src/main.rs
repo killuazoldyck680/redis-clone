@@ -2815,7 +2815,7 @@ if let DataType::User(ref mut user) = db_entry.value {
         return Value::Error("ERR bit offset or value is an integer or out of range")
     }
 
-    let key = unpack_bulk_Str(args.get(0).cloned().unwrap()).unwrap();
+    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
     let offset = match args.get(1).and_then(|a|unpack_bulk_str(a.clone()).ok()).parse::<usize>() {
         Some(s) => s,
