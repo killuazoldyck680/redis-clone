@@ -2812,7 +2812,7 @@ if let DataType::User(ref mut user) = db_entry.value {
 
 "setbit" => {
     if args.len() < 3 {
-        return Value::Error("ERR bit offset or value is an integer or out of range".to_string())
+        return Value::Error("ERR wrong number of arguments for 'setbit' command".to_string());
     }
 
     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
@@ -2824,6 +2824,7 @@ if let DataType::User(ref mut user) = db_entry.value {
         Some(o) => o,
         None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
     };
+
     let value: u8 = match args.get(2)
         .and_then(|a| unpack_bulk_str(a.clone()).ok())
         .and_then(|s| s.parse().ok())
@@ -2832,7 +2833,43 @@ if let DataType::User(ref mut user) = db_entry.value {
         _ => return Value::Error("ERR bit is not an integer or out of range".to_string()),
     };
 
-    Value::Integer(0)
+    let mut db_lock = db.lock().unwrap();
+
+    let db_val = db_lock.entry(key).or_insert_with(|| {
+    DbValue {
+        value: DataType::Str(String::new()),
+        expires_at: None,
+        version: 0, // Or whatever default version/type your codebase uses
+    }
+});
+    match &mut db_val.value {
+        DataType::Str(s) => {
+            let mut bytes = s.as_bytes().to_vec();
+
+            let byte_index = offset / 8;
+            let bit_index = 7 - (offset % 8);
+
+            // Dynamically extend vector with zeros if the offset exceeds current length
+            if byte_index >= bytes.len() {
+                bytes.resize(byte_index + 1, 0);
+            }
+
+            let target_byte = bytes[byte_index];
+            let original_bit = (target_byte >> bit_index) & 1;
+
+            if value == 1 {
+                bytes[byte_index] = target_byte | (1 << bit_index);
+            } else {
+                bytes[byte_index] = target_byte & !(1 << bit_index);
+            }
+
+            // Save the updated byte vector back as a string
+            *s = String::from_utf8_lossy(&bytes).to_string();
+
+            Value::Integer(original_bit as i64)
+        }
+        _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+    }
 }
 
 "getbit" => {
