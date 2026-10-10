@@ -2812,7 +2812,7 @@ if let DataType::User(ref mut user) = db_entry.value {
 
 "setbit" => {
     if args.len() < 3 {
-        return Value::Error("ERR bit offset or value is an integer or out of range")
+        return Value::Error("ERR bit offset or value is an integer or out of range".to_string())
     }
 
     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
