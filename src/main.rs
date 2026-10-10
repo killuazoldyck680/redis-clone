@@ -2840,6 +2840,18 @@ if let DataType::User(ref mut user) = db_entry.value {
         return Value::Error("ERR bit is not an integer or out of range".to_string()),
 
     }
+
+    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+    let offset: usize = match args.get(1)
+        .and_then(|a| unpack_bulk_str(a.clone()).ok())
+        .and_then(|s| s.parse().ok()) 
+    {
+        Some(o) => o,
+        None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
+    };
+
+
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
