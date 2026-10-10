@@ -2817,11 +2817,13 @@ if let DataType::User(ref mut user) = db_entry.value {
 
     let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 
-    let offset = match args.get(1).and_then(|a|unpack_bulk_str(a.clone()).ok()).parse::<usize>() {
-        Some(s) => s,
-        None => Value::Error("ERR bit offset or value is an integer or out of range")
-    }
-
+    let offset: usize = match args.get(1)
+        .and_then(|a| unpack_bulk_str(a.clone()).ok())
+        .and_then(|s| s.parse().ok()) 
+    {
+        Some(o) => o,
+        None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
+    };
     let value = match args.get(2).and_then(|a|unpack_bulk_str(a.clone()).ok()).parse::<u8>()() {
         value == 0 || value == 1 => value,
         None => Value::Error("ERR bit offset or value is an integer or out of range")
