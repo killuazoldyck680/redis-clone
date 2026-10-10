@@ -2855,7 +2855,11 @@ if let DataType::User(ref mut user) = db_entry.value {
 
     match db_lock.get_mut(&key) {
         Some(db_val) => {
-          let byte_index = offset/8;  
+          let byte_index = offset/8; 
+
+          let bit_index = byte_index($7 - (\text{offset} \pmod 8)$) ;
+
+          
         }
         None => return Value::Integer(0)
     }
