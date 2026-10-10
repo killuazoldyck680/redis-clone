@@ -2851,19 +2851,25 @@ if let DataType::User(ref mut user) = db_entry.value {
         None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
     };
 
-    let db_lock = db.lock().unwrap();
+    let mut db_lock = db.lock().unwrap();
 
     match db_lock.get_mut(&key) {
         Some(db_val) => {
             match db_val.value {
-               DataType::String(ref bytes) => {
-                let byte_index = offset/8; 
+              DataType::Str(ref s) => {
+    let byte_index = offset / 8; 
+    let bit_index = 7 - (offset % 8);
+    let bytes = s.as_bytes(); // Convert String to &[u8] slice
 
-          let bit_index = byte_index(7 - (offset % 8)) ;
-
-               } 
-
-               _ => Value::Error("Error")
+    if byte_index >= bytes.len() {
+        Value::Integer(0)
+    } else {
+        let byte = bytes[byte_index];
+        let bit = (byte >> bit_index) & 1;
+        Value::Integer(bit as i64)
+    }
+}
+               _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string())
             }
           
 
