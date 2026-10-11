@@ -2924,6 +2924,14 @@ if let DataType::User(ref mut user) = db_entry.value {
     }
 
     let db_lock = db.lock().unwrap();
+
+    match db_lock.get_mut(&key) {
+        Some(db_val) => {
+
+        }
+
+        None => {}
+    }
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
