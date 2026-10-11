@@ -2922,6 +2922,8 @@ if let DataType::User(ref mut user) = db_entry.value {
         Some(s) => s,
         None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
     }
+
+    let db_lock = db.lock().unwrap();
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
