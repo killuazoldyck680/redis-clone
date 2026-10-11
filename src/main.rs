@@ -2918,16 +2918,20 @@ if let DataType::User(ref mut user) = db_entry.value {
 }
 
 "strlen" => {
-    let key = match args.get(0).and_then(|a| unpack_bulk_Str(a.clone()).ok()) {
+    let key = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
         Some(s) => s,
         None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
-    }
+    };
 
     let db_lock = db.lock().unwrap();
 
-    match db_lock.get_mut(&key) {
+    match db_lock.get(&key) {
         Some(db_val) => {
-            
+            match &db_val.value {
+                DataType::Str(s) => Value::Integer(s.as_bytes().len() as i64),
+
+                _ => Value::Error("WRONGTYPE Operation against a key holding the wrong kind of value".to_string()),
+            }
         }
 
         None => return Value::Integer(0)
