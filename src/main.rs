@@ -2946,6 +2946,12 @@ if let DataType::User(ref mut user) = db_entry.value {
         None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
     }
 
+    let end = match args.get(2).and_then(|a| unpack_bulk_str(a.clone()).ok()).and_then(|s| s.parse().ok()) {
+        Some(s) => s,
+        None => return Value::Error("ERR bit offset is not an integer or out of range".to_string()),
+    }
+
+
 
 
 }
