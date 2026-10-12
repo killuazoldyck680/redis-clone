@@ -2959,8 +2959,27 @@ if let DataType::User(ref mut user) = db_entry.value {
 
     match db_lock.get(&key) {
         Some(db_val) => {
-            match db_val.value {
+            match &db_val.value {
+DataType::Str(s) => {
+                    let bytes = s.as_bytes();
+                    if bytes.is_empty() {
+                        return Value::Integer(0);
+                    }
+                    let len = bytes.len() as isize;
 
+                    // Resolve start index (supports negative indexing like Redis, e.g., -1 for last byte)
+                    let start = match start_opt {
+                        Some(v) if v < 0 => len + v,
+                        Some(v) => v,
+                        None => 0,
+                    };
+
+                    // Resolve end index
+                    let mut end = match end_opt {
+                        Some(v) if v < 0 => len + v,
+                        Some(v) => v,
+                        None => len - 1,
+                    };
             }
         }
 
