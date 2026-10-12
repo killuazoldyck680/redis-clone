@@ -2955,10 +2955,12 @@ if let DataType::User(ref mut user) = db_entry.value {
 
     match db_lock.get(&key) {
         Some(db_val) => {
-            mat
+            match db_val.value {
+
+            }
         }
 
-        None => {}
+        None => return Value::Integer(0)
     }
 
 
