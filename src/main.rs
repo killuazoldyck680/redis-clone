@@ -2980,8 +2980,37 @@ DataType::Str(s) => {
                         Some(v) => v,
                         None => len - 1,
                     };
+
+                    if start >= len {
+                        return Value::Integer(0);
+                    }
+
+                    // If end is past the end of the string, clamp it to the last byte index
+                    if end >= len {
+                        end = len - 1;
+                    }
+
+                    // If start is greater than end (or negative after conversion), return 0
+                    if start > end || start < 0 || end < 0 {
+                        return Value::Integer(0);
+                    }
+
+                    let start_idx = start as usize;
+                    let end_idx = end as usize;
+
+                    // 4. Count the Bits and Return
+                    let mut total_bits: i64 = 0;
+                    for &byte in &bytes[start_idx..=end_idx] {
+                        total_bits += byte.count_ones() as i64;
+                    }
+
+                    Value::Integer(total_bits)
             }
+
+             _ => Value::Error("ERR Operation against a key holding the wrong kind of value".to_string()),
+           
         }
+    }
 
         None => return Value::Integer(0)
     }
