@@ -2953,6 +2953,14 @@ if let DataType::User(ref mut user) = db_entry.value {
 
     let db_lock = db.lock().unwrap();
 
+    match db_lock.get(&key) {
+        Some(db_val) => {
+            mat
+        }
+
+        None => {}
+    }
+
 
 
 
