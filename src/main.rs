@@ -2939,7 +2939,7 @@ if let DataType::User(ref mut user) = db_entry.value {
 }
 
 "bitcount" => {
-    
+    let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
