@@ -3032,11 +3032,12 @@ DataType::Str(s) => {
 }
 
 "bitop" => {
-   if args.len() < 3 {
-    return Value::Error("ERR wrong number of arguments for 'bitop' command".to_string());
-   } 
+    // 1. Check Argument Length (< 3 means missing operation, dest_key, or source keys)
+    if args.len() < 3 {
+        return Value::Error("ERR wrong number of arguments for 'bitop' command".to_string());
+    }
 
-   // Extract Operation (e.g., AND, OR, XOR, NOT)
+    // Extract Operation (e.g., AND, OR, XOR, NOT)
     let operation = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
         Some(op) => op.to_uppercase(),
         None => return Value::Error("ERR invalid bitop operation".to_string()),
@@ -3046,11 +3047,14 @@ DataType::Str(s) => {
         // You can expand this later for OR, XOR, NOT if needed
         return Value::Error(format!("ERR unsupported bitop operation '{}'", operation));
     }
-  let dest_key = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+
+    // Extract Destination Key
+    let dest_key = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
         Some(k) => k,
         None => return Value::Error("ERR invalid destination key".to_string()),
     };
 
+    // Collect Source Keys (everything starting from index 2)
     let mut source_keys = Vec::new();
     for arg in args.iter().skip(2) {
         match unpack_bulk_str(arg.clone()).ok() {
@@ -3063,29 +3067,65 @@ DataType::Str(s) => {
         return Value::Error("ERR wrong number of arguments for 'bitop' command".to_string());
     }
 
-   let db_lock = db.lock().unwrap();
+    // 2. Retrieve and Validate Source Data (requires a write lock since we store the result later)
+    let mut db_lock = db.lock().unwrap();
+    let mut source_bytes_list: Vec<Vec<u8>> = Vec::new();
 
-   let mut source_bytes_list: Vec<Vec<u8>> = Vec::new();
-
-   match db_lock.get(&key) {
-    Some(db_val) => {
-        match db_val.value {
-            DataType::Str() => {
-
+    for src_key in &source_keys {
+        match db_lock.get(src_key) {
+            Some(db_val) => {
+                match &db_val.value {
+                    DataType::Str(s) => {
+                        source_bytes_list.push(s.as_bytes().to_vec());
+                    }
+                    _ => {
+                        return Value::Error(
+                            "ERR Operation against a key holding the wrong kind of value".to_string(),
+                        );
+                    }
+                }
             }
-
-            _ => {}
+            None => {
+                // If a source key does not exist, treat its value as an empty byte vector
+                source_bytes_list.push(Vec::new());
+            }
         }
     }
 
-    None => {
+    // 3. Compute the Bitwise Operation (AND)
+    // Determine Maximum Length across all source vectors
+    let max_len = source_bytes_list.iter().map(|v| v.len()).max().unwrap_or(0);
+    let mut result_bytes = vec![0u8; max_len];
 
+    for i in 0..max_len {
+        // Start with 0xFF for AND operation so any bitwise AND with a byte will filter properly, 
+        // or take the first source byte (with 0x00 fallback if out of bounds)
+        let mut accumulated_byte = 0xFF;
+
+        for src_bytes in &source_bytes_list {
+            let b = *src_bytes.get(i).unwrap_or(&0x00);
+            accumulated_byte &= b;
+        }
+
+        result_bytes[i] = accumulated_byte;
     }
-   }
 
+    // 4. Store the Result and Return Response
+    let result_len = result_bytes.len() as i64;
+    let result_str = String::from_utf8_lossy(&result_bytes).to_string();
 
+    // Store in database under destination key (using your database value structure wrapper)
+    db_lock.insert(
+        dest_key,
+        DbValue {
+            value: DataType::Str(result_str),
+            expires_at: None,
+            version: 0
+            // include any metadata/expiry fields your DbValue struct uses if applicable
+        },
+    );
 
-
+    Value::Integer(result_len)
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
