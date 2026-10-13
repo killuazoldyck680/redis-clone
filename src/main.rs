@@ -3041,6 +3041,11 @@ DataType::Str(s) => {
         Some(op) => op.to_uppercase(),
         None => return Value::Error("ERR invalid bitop operation".to_string()),
     };
+
+    if operation != "AND" {
+        // You can expand this later for OR, XOR, NOT if needed
+        return Value::Error(format!("ERR unsupported bitop operation '{}'", operation));
+    }
    let key = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
 
