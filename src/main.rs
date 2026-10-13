@@ -3043,6 +3043,16 @@ DataType::Str(s) => {
 
    let db_lock = db.lock().unwrap();
 
+   match db_lock.get(&key) {
+    Some(db_val) => {
+
+    }
+
+    None => {
+        
+    }
+   }
+
 
 
 
