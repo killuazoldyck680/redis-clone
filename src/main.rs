@@ -3041,6 +3041,8 @@ DataType::Str(s) => {
    let key = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
 
+   let db_lock = db.lock().unwrap();
+
 
 
 
