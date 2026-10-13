@@ -3046,8 +3046,18 @@ DataType::Str(s) => {
         // You can expand this later for OR, XOR, NOT if needed
         return Value::Error(format!("ERR unsupported bitop operation '{}'", operation));
     }
-   let key = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+  let dest_key = match args.get(1).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+        Some(k) => k,
+        None => return Value::Error("ERR invalid destination key".to_string()),
+    };
 
+    let mut source_keys = Vec::new();
+    for arg in args.iter().skip(2) {
+        match unpack_bulk_str(arg.clone()).ok() {
+            Some(k) => source_keys.push(k),
+            None => return Value::Error("ERR invalid source key".to_string()),
+        }
+    }
 
    let db_lock = db.lock().unwrap();
 
