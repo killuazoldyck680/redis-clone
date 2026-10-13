@@ -3032,7 +3032,7 @@ DataType::Str(s) => {
 }
 
 "bitop" => {
-   if args.len() < 2 {
+   if args.len() < 3 {
     return Value::Error("ERR bit is not an integer or out of range".to_string())
    } 
 
@@ -3045,11 +3045,17 @@ DataType::Str(s) => {
 
    match db_lock.get(&key) {
     Some(db_val) => {
+        match db_val.value {
+            DataType::Str() => {
 
+            }
+
+            _ => {}
+        }
     }
 
     None => {
-        
+
     }
    }
 
