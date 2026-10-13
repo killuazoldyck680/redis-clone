@@ -3031,6 +3031,10 @@ DataType::Str(s) => {
 
 }
 
+"bitop" => {
+    
+}
+
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
