@@ -3032,7 +3032,9 @@ DataType::Str(s) => {
 }
 
 "bitop" => {
-    
+   if args.len() < 2 {
+    return Value::Error("ERR bit is not an integer or out of range".to_string())
+   } 
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
