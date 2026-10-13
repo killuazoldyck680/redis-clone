@@ -3059,7 +3059,13 @@ DataType::Str(s) => {
         }
     }
 
+    if source_keys.is_empty() {
+        return Value::Error("ERR wrong number of arguments for 'bitop' command".to_string());
+    }
+
    let db_lock = db.lock().unwrap();
+
+   let mut source_bytes_list: Vec<Vec<u8>> = Vec::new();
 
    match db_lock.get(&key) {
     Some(db_val) => {
