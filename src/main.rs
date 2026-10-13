@@ -3036,8 +3036,14 @@ DataType::Str(s) => {
     return Value::Error("ERR bit is not an integer or out of range".to_string())
    } 
 
-   let key = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-   
+   let and_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
+
+   let key = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
+
+
+
+
+
 }
 
         _ => Value::Error("ERR unknown command".to_string()),
