@@ -3033,11 +3033,14 @@ DataType::Str(s) => {
 
 "bitop" => {
    if args.len() < 3 {
-    return Value::Error("ERR bit is not an integer or out of range".to_string())
+    return Value::Error("ERR wrong number of arguments for 'bitop' command".to_string());
    } 
 
-   let and_arg = unpack_bulk_str(args.get(0).cloned().unwrap()).unwrap();
-
+   // Extract Operation (e.g., AND, OR, XOR, NOT)
+    let operation = match args.get(0).and_then(|a| unpack_bulk_str(a.clone()).ok()) {
+        Some(op) => op.to_uppercase(),
+        None => return Value::Error("ERR invalid bitop operation".to_string()),
+    };
    let key = unpack_bulk_str(args.get(1).cloned().unwrap()).unwrap();
 
 
