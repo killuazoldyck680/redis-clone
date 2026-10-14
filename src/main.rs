@@ -3099,9 +3099,11 @@ DataType::Str(s) => {
 
     for i in 0..max_len {
         // Handle the first source byte or fallback to 0x00 if out of bounds
-        let first_bytes = source_bytes_list.first().map(|v| *v.get(i).unwrap_or(&0x00)).unwrap_or(0x00);
-        let mut accumulated_byte = first_bytes;
-
+        let mut accumulated_byte = match operation.as_str() {
+            "AND" => 0xFF,
+            "OR" => 0x00,
+            _ => 0x00,
+        };
         // Apply bitwise AND with all remaining source bytes
         for src_bytes in source_bytes_list.iter().skip(1) {
             let b = *src_bytes.get(i).unwrap_or(&0x00);
