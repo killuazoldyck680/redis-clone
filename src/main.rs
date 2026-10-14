@@ -3098,11 +3098,12 @@ DataType::Str(s) => {
     let mut result_bytes = vec![0u8; max_len];
 
     for i in 0..max_len {
-        // Start with 0xFF for AND operation so any bitwise AND with a byte will filter properly, 
-        // or take the first source byte (with 0x00 fallback if out of bounds)
-        let mut accumulated_byte = 0xFF;
+        // Handle the first source byte or fallback to 0x00 if out of bounds
+        let first_bytes = source_bytes_list.first().map(|v| *v.get(i).unwrap_or(&0x00)).unwrap_or(0x00);
+        let mut accumulated_byte = first_bytes;
 
-        for src_bytes in &source_bytes_list {
+        // Apply bitwise AND with all remaining source bytes
+        for src_bytes in source_bytes_list.iter().skip(1) {
             let b = *src_bytes.get(i).unwrap_or(&0x00);
             accumulated_byte &= b;
         }
@@ -3114,20 +3115,18 @@ DataType::Str(s) => {
     let result_len = result_bytes.len() as i64;
     let result_str = String::from_utf8_lossy(&result_bytes).to_string();
 
-    // Store in database under destination key (using your database value structure wrapper)
+    // Store in database under destination key
     db_lock.insert(
         dest_key,
         DbValue {
             value: DataType::Str(result_str),
             expires_at: None,
-            version: 0
-            // include any metadata/expiry fields your DbValue struct uses if applicable
+            version: 0,
         },
     );
 
     Value::Integer(result_len)
 }
-
         _ => Value::Error("ERR unknown command".to_string()),
     }
 }
