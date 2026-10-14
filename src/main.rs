@@ -3043,7 +3043,7 @@ DataType::Str(s) => {
         None => return Value::Error("ERR invalid bitop operation".to_string()),
     };
 
-    if operation != "AND" {
+    if operation != "AND" && operation != "OR"{
         // You can expand this later for OR, XOR, NOT if needed
         return Value::Error(format!("ERR unsupported bitop operation '{}'", operation));
     }
