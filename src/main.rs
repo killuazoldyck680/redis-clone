@@ -3105,7 +3105,7 @@ DataType::Str(s) => {
             _ => 0x00,
         };
         // Apply bitwise AND with all remaining source bytes
-        for src_bytes in source_bytes_list {
+        for src_bytes in &source_bytes_list {
             let b = *src_bytes.get(i).unwrap_or(&0x00);
             match operation.as_str() {
                 "AND" => accumulated_byte &= b,
