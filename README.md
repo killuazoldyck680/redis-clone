@@ -1,4 +1,4 @@
-<div align="center">
+
 
 # 🦀 Redis Clone in Rust
 
@@ -8,7 +8,7 @@
 [![CodeCrafters](https://img.shields.io/badge/CodeCrafters-Build%20your%20own%20Redis-blue)](https://codecrafters.io/challenges/redis)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-</div>
+
 
 ---
 
@@ -64,8 +64,8 @@ geospatial indexes, and ACL-based authentication.
 
 ```bash
 # Clone the repository
-git clone https://github.com/<your-username>/<your-repo>.git
-cd <your-repo>
+git clone https://github.com/killuazoldyck680/redis-clone.git
+cd redis-clone
 
 # Build in release mode
 cargo build --release
